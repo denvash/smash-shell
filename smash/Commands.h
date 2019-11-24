@@ -1,21 +1,24 @@
 #ifndef SMASH_COMMAND_H_
 #define SMASH_COMMAND_H_
 
+#include <utility>
 #include <vector>
 #include <iomanip>
+#include "utils.h"
 
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
 #define HISTORY_MAX_RECORDS (50)
 #define COMMAND_LENGTH (80)
+#define MAX_JOBS (100)
 
 using namespace std;
 
 class Command {
 public:
-    const char *cmd_line;
+    string cmd_line;
 
-    explicit Command(const char *cmd_line) : cmd_line(cmd_line) {
+    explicit Command(string cmdLine) : cmd_line(std::move(cmdLine)) {
 
     }
 
@@ -28,43 +31,73 @@ public:
     // TODO: Add your extra methods if needed
 };
 
-/* ================ Built In Commands ================ */
-
-class BuiltInCommand : public Command {
+class JobsList {
 public:
-    explicit BuiltInCommand(const char *cmd_line) : Command(cmd_line) {
+    struct JobEntry {
+        pid_t pid;
+        Command *cmd;
+        int jobId;
+        time_t startTime;
+        time_t endTime;
+        bool isStopped;
 
+        JobEntry(pid_t pid, Command *cmd, int jobId, time_t startTime, bool isStopped) : pid(pid), cmd(cmd),
+                                                                                         jobId(jobId),
+                                                                                         startTime(startTime),
+                                                                                         endTime(),
+                                                                                         isStopped(isStopped) {}
+    };
+
+    vector<JobEntry *> jobs;
+
+    JobsList() : jobs() {};
+
+    ~JobsList() = default;
+
+    void addJob(Command *cmd, pid_t pid, time_t startTime, bool isStopped = false) {
+        jobs.push_back(new JobEntry(pid, cmd, jobs.size() + 1, startTime, isStopped));
     }
 
-    ~BuiltInCommand() override = default;
-};
+    void printJobsList() {
+        for (auto jobEntry : jobs) {
+            auto jobId = jobEntry->jobId;
+            auto cmd_line = jobEntry->cmd->cmd_line;
+            auto pid = jobEntry->pid;
+            auto startTime = jobEntry->startTime;
+            auto endTime = jobEntry->endTime;
+            auto isStopped = jobEntry->isStopped;
 
-class GetCurrDirCommand : public BuiltInCommand {
-public:
-    explicit GetCurrDirCommand(const char *cmd_line) : BuiltInCommand(cmd_line) {
+            time_t currentTime;
+            auto resTime = time(&currentTime);
 
+            if (resTime == -1) {
+                systemCallError("time");
+            }
+
+            auto time = difftime(isStopped ? endTime : currentTime, startTime);
+
+            cout << "[" << jobId << "] " << cmd_line << " : " << pid << " " << time << endl;
+        }
     }
 
-    ~GetCurrDirCommand() override = default;
+    void killAllJobs();
 
-    void execute() override;
-};
+    void removeFinishedJobs();
 
-class ChangeDirCommand : public BuiltInCommand {
-public:
-    const string &path;
+    JobEntry *getJobById(int jobId);
 
+    void removeJobById(int jobId);
 
-    explicit ChangeDirCommand(const char *cmd_line, const string &path) : BuiltInCommand(cmd_line), path(path) {
+    JobEntry *getLastJob(int *lastJobId);
 
-    }
-
-    ~ChangeDirCommand() override = default;
-
-    void execute() override;
+    JobEntry *getLastStoppedJob(int *jobId);
 };
 
 class CommandsHistory {
+private:
+    int current_index;
+    bool isOverlap;
+    int time;
 public:
     class CommandHistoryEntry {
         const string _cmd_line;
@@ -89,37 +122,30 @@ public:
         }
     };
 
-    int current_index;
-    bool isOverlap;
-    int time;
-
-    CommandHistoryEntry *history[HISTORY_MAX_RECORDS];
-
     CommandsHistory() : current_index(0), isOverlap(false), time(0), history() {
 
     }
 
     ~CommandsHistory() = default;
 
-    static void addRecord(const string &cmd_line, CommandsHistory *commandsHistory) {
-        commandsHistory->increaseTime();
-        auto current_index = commandsHistory->current_index;
+    CommandHistoryEntry *history[HISTORY_MAX_RECORDS];
+
+    void addRecord(const string &cmd_line) {
+        increaseTime();
         auto lastIndex = (current_index == 0 ? HISTORY_MAX_RECORDS : current_index) - 1;
 
-        auto history = commandsHistory->history;
         auto last = history[lastIndex];
         if (last != nullptr && last->isEqual(cmd_line)) {
-            last->setTimestamp(commandsHistory->time);
+            last->setTimestamp(time);
         } else {
-            history[current_index] = new CommandHistoryEntry(cmd_line, commandsHistory->time);
-            commandsHistory->current_index++;
+            history[current_index] = new CommandHistoryEntry(cmd_line, time);
+            current_index++;
         }
 
         if (current_index == HISTORY_MAX_RECORDS) {
-            auto isOverlap = commandsHistory->isOverlap;
-            commandsHistory->current_index = 0;
+            current_index = 0;
             if (!isOverlap) {
-                commandsHistory->isOverlap = true;
+                isOverlap = true;
             }
         }
     }
@@ -154,11 +180,78 @@ public:
     }
 };
 
+class BuiltInCommand : public Command {
+public:
+    explicit BuiltInCommand(string cmdLine) : Command(std::move(cmdLine)) {
+
+    }
+
+    ~BuiltInCommand() override = default;
+};
+
+class ExternalCommand : public Command {
+public:
+    explicit ExternalCommand(string cmdLine) : Command(std::move(cmdLine)) {};
+
+    ~ExternalCommand() override = default;
+
+    void execute() override;
+};
+
+class PipeCommand : public Command {
+    // TODO: Add your data members
+public:
+    PipeCommand(const char *cmd_line);
+
+    virtual ~PipeCommand() {}
+
+    void execute() override;
+};
+
+class RedirectionCommand : public Command {
+    // TODO: Add your data members
+public:
+    explicit RedirectionCommand(const char *cmd_line);
+
+    virtual ~RedirectionCommand() {}
+
+    void execute() override;
+    //void prepare() override;
+    //void cleanup() override;
+};
+
+/* ================ Built In Commands ================ */
+
+class GetCurrDirCommand : public BuiltInCommand {
+public:
+    explicit GetCurrDirCommand(string cmdLine) : BuiltInCommand(std::move(cmdLine)) {
+
+    }
+
+    ~GetCurrDirCommand() override = default;
+
+    void execute() override;
+};
+
+class ChangeDirCommand : public BuiltInCommand {
+public:
+    const string &path;
+
+
+    explicit ChangeDirCommand(const char *cmd_line, const string &path) : BuiltInCommand(cmd_line), path(path) {
+
+    }
+
+    ~ChangeDirCommand() override = default;
+
+    void execute() override;
+};
+
 class HistoryCommand : public BuiltInCommand {
     CommandsHistory *_history;
 public:
-    explicit HistoryCommand(const char *cmd_line, CommandsHistory *history) : BuiltInCommand(cmd_line),
-                                                                              _history(history) {
+    explicit HistoryCommand(string cmdLine, CommandsHistory *history) : BuiltInCommand(cmdLine),
+                                                                        _history(history) {
 
     }
 
@@ -169,14 +262,12 @@ public:
 
 class ShowPidCommand : public BuiltInCommand {
 public:
-    explicit ShowPidCommand(const char *cmd_line) : BuiltInCommand(cmd_line) {}
+    explicit ShowPidCommand(string cmdLine) : BuiltInCommand(std::move(cmdLine)) {}
 
     ~ShowPidCommand() override = default;
 
     void execute() override;
 };
-
-class JobsList;
 
 class QuitCommand : public BuiltInCommand {
 // TODO: Add your data members public:
@@ -187,48 +278,15 @@ class QuitCommand : public BuiltInCommand {
     void execute() override;
 };
 
-class JobsList {
-public:
-    class JobEntry {
-        // TODO: Add your data members
-    };
-    // TODO: Add your data members
-public:
-    JobsList() = default;
-
-    ~JobsList();
-
-    void addJob(Command *cmd, bool isStopped = false);
-
-    void printJobsList() {
-        cout << "hello" << endl;
-    }
-
-    void killAllJobs();
-
-    void removeFinishedJobs();
-
-    JobEntry *getJobById(int jobId);
-
-    void removeJobById(int jobId);
-
-    JobEntry *getLastJob(int *lastJobId);
-
-    JobEntry *getLastStoppedJob(int *jobId);
-    // TODO: Add extra methods or modify exisitng ones as needed
-};
-
 class JobsCommand : public BuiltInCommand {
     JobsList *_jobs;
 public:
-    JobsCommand(const char *cmd_line, JobsList *jobs) : BuiltInCommand(cmd_line), _jobs(jobs) {
+    JobsCommand(string cmdLine, JobsList *jobs) : BuiltInCommand(std::move(cmdLine)), _jobs(jobs) {
     }
 
     ~JobsCommand() override = default;
 
-    void execute() override {
-        _jobs->printJobsList();
-    }
+    void execute() override;
 };
 
 class KillCommand : public BuiltInCommand {
@@ -270,71 +328,42 @@ public:
     void execute() override;
 };
 
-/* ================ End Built In Commands ================ */
-
-
-
-/* ================ External Commands ================ */
-
-class ExternalCommand : public Command {
-public:
-    explicit ExternalCommand(const char *cmd_line) : Command(cmd_line) {};
-    ~ExternalCommand() override = default;
-    void execute() override;
-};
-
-class PipeCommand : public Command {
-    // TODO: Add your data members
-public:
-    PipeCommand(const char *cmd_line);
-
-    virtual ~PipeCommand() {}
-
-    void execute() override;
-};
-
-class RedirectionCommand : public Command {
-    // TODO: Add your data members
-public:
-    explicit RedirectionCommand(const char *cmd_line);
-
-    virtual ~RedirectionCommand() {}
-
-    void execute() override;
-    //void prepare() override;
-    //void cleanup() override;
-};
-
-/* ================ End External Commands ================ */
+/* ================ Shell ================ */
 
 class SmallShell {
 private:
-    SmallShell();
+    SmallShell() {
+        last_pwd = "";
+        history = new CommandsHistory();
+        jobsList = new JobsList();
+    }
+
 
 public:
     static string last_pwd;
     static CommandsHistory *history;
     static JobsList *jobsList;
 
-    static Command *createCommand(const char *cmd_line);
+    static Command *createCommand(const string& cmdLine);
 
     SmallShell(SmallShell const &) = delete; // disable copy ctor
     void operator=(SmallShell const &) = delete; // disable = operator
-    static SmallShell &getInstance() // make SmallShell singleton
-    {
+    static SmallShell &getInstance() { // makes SmallShell singleton
         static SmallShell instance; // Guaranteed to be destroyed.
-        // Instantiated on first use.
-        return instance;
+        return instance; // Instantiated on first use.
     }
 
-    ~SmallShell();
+    ~SmallShell() = default;
 
-    static void executeCommand(const char *cmd_line);
+    static void executeCommand(const char *cmdBuffer);
 
-    static void logError(const string &message);
+    static void logError(const string &message) {
+        cout << "smash error: " << message << endl;
+    }
 
-    static void logDebug(const string &message);
-    // TODO: add extra methods as needed
+    static void logDebug(const string &message) {
+        cout << "smash debug: " << message << endl;
+    }
 };
 
 #endif //SMASH_COMMAND_H_

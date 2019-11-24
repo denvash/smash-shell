@@ -1,139 +1,68 @@
 #include <unistd.h>
-#include <string.h>
 #include <iostream>
 #include <vector>
-#include <sstream>
 #include <sys/wait.h>
-#include <iomanip>
+#include <ctime>
 #include "Commands.h"
 
 using namespace std;
-
-#if 0
-#define FUNC_ENTRY()  \
-  cout << __PRETTY_FUNCTION__ << " --> " << endl;
-
-#define FUNC_EXIT()  \
-  cout << __PRETTY_FUNCTION__ << " <-- " << endl;
-#else
-#define FUNC_ENTRY()
-#define FUNC_EXIT()
-#endif
-
-const std::string WHITESPACE = " \n\r\t\f\v";
-
-string _ltrim(const std::string &s) {
-    size_t start = s.find_first_not_of(WHITESPACE);
-    return (start == std::string::npos) ? "" : s.substr(start);
-}
-
-string _rtrim(const std::string &s) {
-    size_t end = s.find_last_not_of(WHITESPACE);
-    return (end == std::string::npos) ? "" : s.substr(0, end + 1);
-}
-
-string _trim(const std::string &s) {
-    return _rtrim(_ltrim(s));
-}
-
-int _parseCommandLine(const char *cmd_line, char **args) {
-    FUNC_ENTRY()
-    int i = 0;
-    std::istringstream iss(_trim(string(cmd_line)).c_str());
-    for (std::string s; iss >> s;) {
-        args[i] = (char *) malloc(s.length() + 1);
-        memset(args[i], 0, s.length() + 1);
-        strcpy(args[i], s.c_str());
-        args[++i] = NULL;
-    }
-    return i;
-
-    FUNC_EXIT()
-}
-
-bool _isBackgroundCommand(const char *cmd_line) {
-    const string whitespace = " \t\n";
-    const string str(cmd_line);
-    return str[str.find_last_not_of(whitespace)] == '&';
-}
-
-void _removeBackgroundSign(char *cmd_line) {
-    const string whitespace = " \t\n";
-    const string str(cmd_line);
-    // find last character other than spaces
-    size_t idx = str.find_last_not_of(whitespace);
-    // if all characters are spaces then return
-    if (idx == string::npos) {
-        return;
-    }
-    // if the command line does not end with & then return
-    if (cmd_line[idx] != '&') {
-        return;
-    }
-    // replace the & (background sign) with space and then remove all tailing spaces.
-    cmd_line[idx] = ' ';
-    // truncate the command line string up to the last non-space character
-    cmd_line[str.find_last_not_of(whitespace, idx - 1) + 1] = 0;
-}
-
-void systemCallError(const string &sys_call_name) {
-    string message = "smash error: " + sys_call_name + " failed";
-    perror(message.c_str());
-}
 
 string SmallShell::last_pwd;
 CommandsHistory *SmallShell::history;
 JobsList *SmallShell::jobsList;
 
-SmallShell::SmallShell() {
-    SmallShell::history = new CommandsHistory();
-    SmallShell::jobsList = new JobsList();
-}
+void SmallShell::executeCommand(const char *cmdBuffer) {
+    char cmdCopy[COMMAND_LENGTH];
+    strcpy(cmdCopy, cmdBuffer);
 
-SmallShell::~SmallShell() {
-    delete SmallShell::history;
-//    delete SmallShell::jobsList;
-}
+    bool isBgCmd = isBackgroundCommand(cmdCopy);
+    removeBackgroundSign(cmdCopy);
 
-void SmallShell::executeCommand(const char *cmd_line) {
-    // Must fork smash process for some commands (e.g., external commands....)
-    bool isBgCmd = _isBackgroundCommand(cmd_line);
-    _removeBackgroundSign((char *) cmd_line);
+    auto tweakedCmdLine = string(cmdCopy);
 
-    CommandsHistory::addRecord(string(cmd_line), SmallShell::history);
-    auto cmd = createCommand(cmd_line);
+    auto cmd = createCommand(tweakedCmdLine);
+    if (cmd == nullptr) {
+        return;
+    }
+
+    history->addRecord(tweakedCmdLine);
 
     if (isBgCmd) {
         auto pid = fork();
+
         if (pid == 0) {
             cmd->execute();
+            exit(0);
         } else if (pid == -1) {
             systemCallError("fork");
+        } else {
+            time_t jobStartTime;
+            auto timeRes = time(&jobStartTime);
+
+            if (timeRes == -1) {
+                systemCallError("time");
+            }
+            char fullCmd[COMMAND_LENGTH];
+            strcpy(fullCmd, cmdBuffer);
+            cmd->cmd_line = string(fullCmd);
+            jobsList->addJob(cmd, pid, jobStartTime);
         }
     } else {
         cmd->execute();
-        wait(nullptr);
+        int wstatus;
+        waitpid(0, &wstatus, WNOHANG);
     }
 
 }
 
-void SmallShell::logError(const string &message) {
-    cout << "smash error: " << message << endl;
-}
-
-void SmallShell::logDebug(const string &message) {
-    cout << "smash debug: " << message << endl;
-}
-
-Command *SmallShell::createCommand(const char *cmd_line) {
-    string _cmdLine = string(cmd_line);
-
-    if (_cmdLine.empty()) {
+Command *SmallShell::createCommand(const string &cmdLine) {
+    if (cmdLine.empty()) {
         return nullptr;
     }
 
     char *args_chars[COMMAND_MAX_ARGS];
-    int args_size = _parseCommandLine(cmd_line, args_chars);
+
+    int args_size = _parseCommandLine(cmdLine.c_str(), args_chars);
     string args[COMMAND_MAX_ARGS];
 
     for (int i = 0; i < args_size; i++) {
@@ -144,7 +73,7 @@ Command *SmallShell::createCommand(const char *cmd_line) {
     string cmd = args[0];
 
     if (cmd == "pwd") {
-        return new GetCurrDirCommand(cmd_line);
+        return new GetCurrDirCommand(cmdLine);
 
     } else if (cmd == "cd") {
         if (args_size > 2) {
@@ -156,17 +85,17 @@ Command *SmallShell::createCommand(const char *cmd_line) {
             if (isRoot && last_pwd.empty()) {
                 logError("cd: OLDPWD not set");
             } else {
-                return new ChangeDirCommand(cmd_line, isRoot ? last_pwd : arg);
+                return new ChangeDirCommand(cmdLine.c_str(), isRoot ? last_pwd : arg);
             }
         }
     } else if (cmd == "history") {
-        return new HistoryCommand(cmd_line, SmallShell::history);
+        return new HistoryCommand(cmdLine, history);
     } else if (cmd == "jobs") {
-        return new JobsCommand(cmd_line, SmallShell::jobsList);
+        return new JobsCommand(cmdLine, jobsList);
     } else if (cmd == "showpid") {
-        return new ShowPidCommand(cmd_line);
+        return new ShowPidCommand(cmdLine);
     }
-    return new ExternalCommand(cmd_line);
+    return new ExternalCommand(cmdLine);
 }
 
 void ChangeDirCommand::execute() {
@@ -204,7 +133,9 @@ void ShowPidCommand::execute() {
 }
 
 void ExternalCommand::execute() {
-    char *args[] = {(char *) "/bin/bash", (char *) "-c", (char *) cmd_line, nullptr};
+    char str_buf[COMMAND_LENGTH];
+    strcpy(str_buf, cmd_line.c_str());
+    char *args[] = {(char *) "/bin/bash", (char *) "-c", str_buf, nullptr};
     int pid = fork();
     if (pid == 0) {
         int res = execv(args[0], args);
@@ -220,4 +151,8 @@ void ExternalCommand::execute() {
 
 void HistoryCommand::execute() {
     _history->printHistory();
+}
+
+void JobsCommand::execute() {
+    _jobs->printJobsList();
 }
