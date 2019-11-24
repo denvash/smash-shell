@@ -51,7 +51,7 @@ int _parseCommandLine(const char *cmd_line, char **args) {
     FUNC_EXIT()
 }
 
-bool _isBackgroundComamnd(const char *cmd_line) {
+bool _isBackgroundCommand(const char *cmd_line) {
     const string whitespace = " \t\n";
     const string str(cmd_line);
     return str[str.find_last_not_of(whitespace)] == '&';
@@ -83,29 +83,38 @@ void systemCallError(const string &sys_call_name) {
 
 string SmallShell::last_pwd;
 CommandsHistory *SmallShell::history;
+JobsList *SmallShell::jobsList;
 
 SmallShell::SmallShell() {
     SmallShell::history = new CommandsHistory();
-};
-// TODO: add your implementation
-
+    SmallShell::jobsList = new JobsList();
+}
 
 SmallShell::~SmallShell() {
-// TODO: add your implementation
+    delete SmallShell::history;
+//    delete SmallShell::jobsList;
 }
 
 void SmallShell::executeCommand(const char *cmd_line) {
-    // TODO: Add your implementation here
-    // Please note that you must fork smash process for some commands (e.g., external commands....)
-    auto cmd = CreateCommand(cmd_line);
+    // Must fork smash process for some commands (e.g., external commands....)
+    bool isBgCmd = _isBackgroundCommand(cmd_line);
+    _removeBackgroundSign((char *) cmd_line);
 
-    string _cmd_line = string(cmd_line);
-    CommandsHistory::addRecord(_cmd_line, SmallShell::history);
-    SmallShell::history->increaseTime();
+    CommandsHistory::addRecord(string(cmd_line), SmallShell::history);
+    auto cmd = createCommand(cmd_line);
 
-    if (cmd != nullptr) {
+    if (isBgCmd) {
+        auto pid = fork();
+        if (pid == 0) {
+            cmd->execute();
+        } else if (pid == -1) {
+            systemCallError("fork");
+        }
+    } else {
         cmd->execute();
+        wait(nullptr);
     }
+
 }
 
 void SmallShell::logError(const string &message) {
@@ -116,11 +125,9 @@ void SmallShell::logDebug(const string &message) {
     cout << "smash debug: " << message << endl;
 }
 
-/**
-* Creates and returns a pointer to Command class which matches the given command line (cmd_line)
-*/
-Command *SmallShell::CreateCommand(const char *cmd_line) {
+Command *SmallShell::createCommand(const char *cmd_line) {
     string _cmdLine = string(cmd_line);
+
     if (_cmdLine.empty()) {
         return nullptr;
     }
@@ -152,25 +159,16 @@ Command *SmallShell::CreateCommand(const char *cmd_line) {
                 return new ChangeDirCommand(cmd_line, isRoot ? last_pwd : arg);
             }
         }
-
     } else if (cmd == "history") {
         return new HistoryCommand(cmd_line, SmallShell::history);
-    } else {
-        logError(string("> ") + _cmdLine);
+    } else if (cmd == "jobs") {
+        return new JobsCommand(cmd_line, SmallShell::jobsList);
+    } else if (cmd == "showpid") {
+        return new ShowPidCommand(cmd_line);
     }
-
-    return nullptr;
+    return new ExternalCommand(cmd_line);
 }
 
-// pwd
-void GetCurrDirCommand::execute() {
-    char cwd[COMMAND_LENGTH];
-    if (getcwd(cwd, sizeof(cwd)) != nullptr) {
-        cout << cwd << endl;
-    }
-}
-
-// cd <path>
 void ChangeDirCommand::execute() {
     string back_up_last_pwd = string(SmallShell::last_pwd);
 
@@ -193,6 +191,33 @@ void ChangeDirCommand::execute() {
 
 }
 
+void GetCurrDirCommand::execute() {
+    char cwd[COMMAND_LENGTH];
+    if (getcwd(cwd, sizeof(cwd)) != nullptr) {
+        cout << cwd << endl;
+    }
+}
+
+void ShowPidCommand::execute() {
+    pid_t id = getpid();
+    cout << "smash pid is " << id << endl;
+}
+
+void ExternalCommand::execute() {
+    char *args[] = {(char *) "/bin/bash", (char *) "-c", (char *) cmd_line, nullptr};
+    int pid = fork();
+    if (pid == 0) {
+        int res = execv(args[0], args);
+        if (res == -1) {
+            systemCallError("execv");
+        }
+        exit(0);
+    } else if (pid == -1) {
+        systemCallError("fork");
+    }
+    wait(nullptr);
+}
+
 void HistoryCommand::execute() {
-    SmallShell::history->printHistory();
+    _history->printHistory();
 }

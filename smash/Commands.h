@@ -6,7 +6,7 @@
 
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
-#define HISTORY_MAX_RECORDS (4)
+#define HISTORY_MAX_RECORDS (50)
 #define COMMAND_LENGTH (80)
 
 using namespace std;
@@ -22,6 +22,7 @@ public:
     virtual ~Command() = default;
 
     virtual void execute() = 0;
+
     //virtual void prepare();
     //virtual void cleanup();
     // TODO: Add your extra methods if needed
@@ -38,7 +39,6 @@ public:
     ~BuiltInCommand() override = default;
 };
 
-// smash pwd
 class GetCurrDirCommand : public BuiltInCommand {
 public:
     explicit GetCurrDirCommand(const char *cmd_line) : BuiltInCommand(cmd_line) {
@@ -50,7 +50,6 @@ public:
     void execute() override;
 };
 
-// smash cd <path>
 class ChangeDirCommand : public BuiltInCommand {
 public:
     const string &path;
@@ -65,7 +64,6 @@ public:
     void execute() override;
 };
 
-// history entry
 class CommandsHistory {
 public:
     class CommandHistoryEntry {
@@ -97,13 +95,14 @@ public:
 
     CommandHistoryEntry *history[HISTORY_MAX_RECORDS];
 
-    CommandsHistory() : current_index(0), isOverlap(false), time(1), history() {
+    CommandsHistory() : current_index(0), isOverlap(false), time(0), history() {
 
     }
 
     ~CommandsHistory() = default;
 
     static void addRecord(const string &cmd_line, CommandsHistory *commandsHistory) {
+        commandsHistory->increaseTime();
         auto current_index = commandsHistory->current_index;
         auto lastIndex = (current_index == 0 ? HISTORY_MAX_RECORDS : current_index) - 1;
 
@@ -155,10 +154,11 @@ public:
     }
 };
 
-// smash history
 class HistoryCommand : public BuiltInCommand {
+    CommandsHistory *_history;
 public:
-    explicit HistoryCommand(const char *cmd_line, CommandsHistory *history) : BuiltInCommand(cmd_line) {
+    explicit HistoryCommand(const char *cmd_line, CommandsHistory *history) : BuiltInCommand(cmd_line),
+                                                                              _history(history) {
 
     }
 
@@ -167,45 +167,11 @@ public:
     void execute() override;
 };
 
-/* ================ End Built In Commands ================ */
-
-class ExternalCommand : public Command {
-public:
-    ExternalCommand(const char *cmd_line);
-
-    virtual ~ExternalCommand() {}
-
-    void execute() override;
-};
-
-class PipeCommand : public Command {
-    // TODO: Add your data members
-public:
-    PipeCommand(const char *cmd_line);
-
-    virtual ~PipeCommand() {}
-
-    void execute() override;
-};
-
-class RedirectionCommand : public Command {
-    // TODO: Add your data members
-public:
-    explicit RedirectionCommand(const char *cmd_line);
-
-    virtual ~RedirectionCommand() {}
-
-    void execute() override;
-    //void prepare() override;
-    //void cleanup() override;
-};
-
-
 class ShowPidCommand : public BuiltInCommand {
 public:
-    ShowPidCommand(const char *cmd_line);
+    explicit ShowPidCommand(const char *cmd_line) : BuiltInCommand(cmd_line) {}
 
-    virtual ~ShowPidCommand() {}
+    ~ShowPidCommand() override = default;
 
     void execute() override;
 };
@@ -221,7 +187,6 @@ class QuitCommand : public BuiltInCommand {
     void execute() override;
 };
 
-
 class JobsList {
 public:
     class JobEntry {
@@ -229,13 +194,15 @@ public:
     };
     // TODO: Add your data members
 public:
-    JobsList();
+    JobsList() = default;
 
     ~JobsList();
 
     void addJob(Command *cmd, bool isStopped = false);
 
-    void printJobsList();
+    void printJobsList() {
+        cout << "hello" << endl;
+    }
 
     void killAllJobs();
 
@@ -252,13 +219,16 @@ public:
 };
 
 class JobsCommand : public BuiltInCommand {
-    // TODO: Add your data members
+    JobsList *_jobs;
 public:
-    JobsCommand(const char *cmd_line, JobsList *jobs);
+    JobsCommand(const char *cmd_line, JobsList *jobs) : BuiltInCommand(cmd_line), _jobs(jobs) {
+    }
 
-    virtual ~JobsCommand() {}
+    ~JobsCommand() override = default;
 
-    void execute() override;
+    void execute() override {
+        _jobs->printJobsList();
+    }
 };
 
 class KillCommand : public BuiltInCommand {
@@ -300,6 +270,43 @@ public:
     void execute() override;
 };
 
+/* ================ End Built In Commands ================ */
+
+
+
+/* ================ External Commands ================ */
+
+class ExternalCommand : public Command {
+public:
+    explicit ExternalCommand(const char *cmd_line) : Command(cmd_line) {};
+    ~ExternalCommand() override = default;
+    void execute() override;
+};
+
+class PipeCommand : public Command {
+    // TODO: Add your data members
+public:
+    PipeCommand(const char *cmd_line);
+
+    virtual ~PipeCommand() {}
+
+    void execute() override;
+};
+
+class RedirectionCommand : public Command {
+    // TODO: Add your data members
+public:
+    explicit RedirectionCommand(const char *cmd_line);
+
+    virtual ~RedirectionCommand() {}
+
+    void execute() override;
+    //void prepare() override;
+    //void cleanup() override;
+};
+
+/* ================ End External Commands ================ */
+
 class SmallShell {
 private:
     SmallShell();
@@ -307,8 +314,9 @@ private:
 public:
     static string last_pwd;
     static CommandsHistory *history;
+    static JobsList *jobsList;
 
-    static Command *CreateCommand(const char *cmd_line);
+    static Command *createCommand(const char *cmd_line);
 
     SmallShell(SmallShell const &) = delete; // disable copy ctor
     void operator=(SmallShell const &) = delete; // disable = operator
