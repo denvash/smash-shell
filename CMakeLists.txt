@@ -7,3 +7,9 @@ set(GCC "-std=c++11 -Wall")
 add_definitions(${GCC})
 
 add_executable(OS_HW1_WET main.cpp)
+
+add_executable(smash
+        smash/smash.cpp
+        smash/Commands.cpp
+        smash/signals.cpp
+        )
