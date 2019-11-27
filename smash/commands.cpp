@@ -144,7 +144,36 @@ Command *SmallShell::createCommand(const string &cmdLine) {
             return nullptr;
         }
 
-        return new ForegroundCommand(cmdLine, jobEntry);
+        return new BackgroundCommand(cmdLine, jobEntry);
+    } else if (cmd == "bg") {
+        if (args_size == 1) {
+            auto lastEntry = jobsList->getLastStoppedJob();
+
+            if (lastEntry == nullptr) {
+                logError("bg: there is no stopped jobs to resume");
+                return nullptr;
+            }
+
+            return new BackgroundCommand(cmdLine, lastEntry);
+        }
+
+        auto jobId = toNumber(args[1]);
+
+        if (args_size > 2 || jobId == -1) {
+            logError("bg: invalid arguments");
+            return nullptr;
+        }
+
+        auto jobEntry = jobsList->getJobById(jobId);
+
+        if (jobEntry == nullptr) {
+            logError("bg: job-id " + to_string(jobId) + " does not exists");
+            return nullptr;
+        } else if (!jobEntry->isStopped) {
+            logError("bg: job-id " + to_string(jobId) + " is already running in the background");
+            return nullptr;
+        }
+        return new BackgroundCommand(cmdLine, jobEntry);
     } else {
         return new ExternalCommand(cmdLine);
     }
@@ -190,6 +219,18 @@ void ForegroundCommand::execute() {
         SmallShell::fgProcess = job;
         int wstatus;
         waitpid(-1, &wstatus, WUNTRACED);
+    }
+}
+
+void BackgroundCommand::execute() {
+    job->print();
+
+    auto killRes = kill(job->pid, SIGCONT);
+
+    if (killRes == -1) {
+        logErrorSystemCall("kill");
+    } else {
+        job->isStopped = false;
     }
 }
 

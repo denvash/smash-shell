@@ -139,7 +139,17 @@ public:
         return jobs.empty() ? nullptr : jobs.back();
     }
 
-    JobEntry *getLastStoppedJob(int *jobId);
+    JobEntry *getLastStoppedJob() {
+        auto i = jobs.end();
+        while (i != jobs.begin()) {
+            --i;
+
+            if ((*i)->isStopped) {
+                return *i;
+            }
+        }
+        return nullptr;
+    }
 };
 
 class CommandsHistory {
@@ -370,11 +380,12 @@ public:
 };
 
 class BackgroundCommand : public BuiltInCommand {
-    // TODO: Add your data members
+    JobsList::JobEntry *job;
 public:
-    BackgroundCommand(const char *cmd_line, JobsList *jobs);
+    BackgroundCommand(string cmdLine, JobsList::JobEntry *jobEntry) : BuiltInCommand(std::move(cmdLine)),
+                                                                      job(jobEntry) {}
 
-    virtual ~BackgroundCommand() {}
+    ~BackgroundCommand() override = default;
 
     void execute() override;
 };
