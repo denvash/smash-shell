@@ -37,14 +37,13 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
         } else if (pid == -1) {
             logErrorSystemCall("fork");
         } else {
-            auto jobStartTime = getStartTime();
+            auto jobStartTime = getCurrentTime();
             cmd->cmdLine = string(cmdBuffer);
             jobsList->addJob(cmd, pid, jobStartTime);
         }
     } else {
         cmd->execute();
     }
-
 }
 
 Command *SmallShell::createCommand(const string &cmdLine) {
@@ -192,6 +191,9 @@ void ExternalCommand::execute() {
     } else if (pid == -1) {
         logErrorSystemCall("fork");
     } else {
+        auto time = getCurrentTime();
+        SmallShell::jobsList->addJob(this, pid, time);
+
         SmallShell::fgPid = pid;
         int wstatus;
         waitpid(-1, &wstatus, WUNTRACED);
@@ -212,8 +214,11 @@ void KillCommand::execute() {
 
     if (killRes == -1) {
         logErrorSystemCall("kill");
+    } else {
+        auto jobList = SmallShell::jobsList;
+        auto job = jobList->getJobByPid(pid);
+        jobList->removeJobById(job->jobId);
     }
-
 }
 
 void QuitCommand::execute() {

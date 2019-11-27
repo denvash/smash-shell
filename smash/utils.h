@@ -111,15 +111,15 @@ inline void logDebug(const string &message) {
     cout << "smash debug: " << message << endl;
 }
 
-inline time_t getStartTime() {
-    time_t startTime;
-    auto timeRes = time(&startTime);
+inline time_t getCurrentTime() {
+    time_t currTime;
+    auto timeRes = time(&currTime);
 
     if (timeRes == -1) {
         logErrorSystemCall("time");
     }
 
-    return startTime;
+    return currTime;
 }
 
 #endif //OS_HW1_WET_UTILS_H

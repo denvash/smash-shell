@@ -42,11 +42,17 @@ public:
         time_t endTime;
         bool isStopped;
 
-        JobEntry(pid_t pid, Command *cmd, int jobId, time_t startTime, bool isStopped) : pid(pid), cmd(cmd),
-                                                                                         jobId(jobId),
-                                                                                         startTime(startTime),
-                                                                                         endTime(),
-                                                                                         isStopped(isStopped) {}
+        JobEntry(pid_t pid, Command *cmd, int jobId,
+                 time_t startTime,
+                 time_t endTime,
+                 bool isStopped) : pid(pid),
+                                   cmd(cmd),
+                                   jobId(jobId),
+                                   startTime(
+                                           startTime),
+                                   endTime(),
+                                   isStopped(
+                                           isStopped) {}
 
         void print() {
             std::cout << pid << ": " << cmd->cmdLine << endl;
@@ -61,7 +67,14 @@ public:
     ~JobsList() = default;
 
     void addJob(Command *cmd, pid_t pid, time_t startTime, bool isStopped = false) {
-        jobs.push_back(new JobEntry(pid, cmd, (int) jobs.size() + 1, startTime, isStopped));
+        time_t currentTime;
+        auto resTime = time(&currentTime);
+
+        if (resTime == -1) {
+            logErrorSystemCall("time");
+        }
+
+        jobs.push_back(new JobEntry(pid, cmd, (int) jobs.size() + 1, startTime, currentTime, isStopped));
     }
 
     void printJobsList() {
@@ -82,7 +95,8 @@ public:
 
             auto time = difftime(isStopped ? endTime : currentTime, startTime);
 
-            cout << "[" << jobId << "] " << cmd_line << " : " << pid << " " << time << endl;
+            cout << "[" << jobId << "] " << cmd_line << " : " << pid << " " << time << " secs" <<
+                 (isStopped ? " (stopped)" : "") << endl;
         }
     }
 
@@ -103,7 +117,18 @@ public:
         return jobId - 1 < jobs.size() ? jobs[jobId - 1] : nullptr;
     }
 
-    void removeJobById(int jobId);
+    JobEntry *getJobByPid(pid_t pid) {
+        for (auto &job : jobs) {
+            if (job->pid == pid) {
+                return job;
+            }
+        }
+        return nullptr;
+    }
+
+    void removeJobById(int jobId) {
+        jobs.erase(jobs.begin() + jobId - 1);
+    }
 
     JobEntry *getLastJob() {
         return jobs.empty() ? nullptr : jobs.back();
