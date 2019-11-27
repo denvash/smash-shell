@@ -44,15 +44,15 @@ public:
 
         JobEntry(pid_t pid, Command *cmd, int jobId,
                  time_t startTime,
-                 time_t endTime,
-                 bool isStopped) : pid(pid),
-                                   cmd(cmd),
-                                   jobId(jobId),
-                                   startTime(
-                                           startTime),
-                                   endTime(),
-                                   isStopped(
-                                           isStopped) {}
+                 time_t endTime = -1,
+                 bool isStopped = false) : pid(pid),
+                                           cmd(cmd),
+                                           jobId(jobId),
+                                           startTime(
+                                                   startTime),
+                                           endTime(),
+                                           isStopped(
+                                                   isStopped) {}
 
         void print() {
             std::cout << pid << ": " << cmd->cmdLine << endl;
@@ -75,6 +75,11 @@ public:
         }
 
         jobs.push_back(new JobEntry(pid, cmd, (int) jobs.size() + 1, startTime, currentTime, isStopped));
+    }
+
+    void addJob(JobEntry *job) {
+        job->jobId = (int) jobs.size() + 1;
+        jobs.push_back(job);
     }
 
     void printJobsList() {
@@ -391,32 +396,15 @@ private:
         last_pwd = "";
         history = new CommandsHistory();
         jobsList = new JobsList();
-        fgProcess = new FgProcess(-1, getCurrentTime(), getCurrentTime());
+        fgProcess = nullptr;
     }
 
 
 public:
-    struct FgProcess {
-        pid_t pid;
-        time_t startTime;
-        time_t endTime;
-
-        void setPid(pid_t pid) {
-            this->pid = pid;
-        }
-
-        void resetPid() {
-            pid = -1;
-        }
-
-        explicit FgProcess(pid_t pid, time_t startTime, time_t endTime) : pid(pid), startTime(startTime),
-                                                                          endTime(endTime) {}
-    };
-
     static string last_pwd;
     static CommandsHistory *history;
     static JobsList *jobsList;
-    static FgProcess *fgProcess;
+    static JobsList::JobEntry *fgProcess;
 
     static Command *createCommand(const string &cmdLine);
 

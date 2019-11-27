@@ -1,21 +1,24 @@
 #include <unistd.h>
 #include <iostream>
 #include <vector>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <ctime>
 #include "commands.h"
+
 
 using namespace std;
 
 string SmallShell::last_pwd;
 CommandsHistory *SmallShell::history;
 JobsList *SmallShell::jobsList;
-SmallShell::FgProcess *SmallShell::fgProcess;
+JobsList::JobEntry *SmallShell::fgProcess;
 
-void waitWithTrace() {
-    int wstatus;
-    waitpid(-1, &wstatus, WUNTRACED);
+void setFg(Command *cmd, pid_t pid) {
+    delete SmallShell::fgProcess;
+    SmallShell::fgProcess = new JobsList::JobEntry(pid, cmd, -1, getCurrentTime());
 }
+
 
 void SmallShell::executeCommand(const char *cmdBuffer) {
     auto cmdCopy = string(cmdBuffer);
@@ -48,6 +51,9 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
         }
     } else {
         cmd->execute();
+        delete SmallShell::fgProcess;
+        auto time = getCurrentTime();
+        SmallShell::fgProcess = new JobsList::JobEntry(-1, cmd, -1, time);
     }
 }
 
@@ -145,6 +151,48 @@ Command *SmallShell::createCommand(const string &cmdLine) {
     return nullptr;
 }
 
+void ExternalCommand::execute() {
+    auto cmdCopy = string(cmdLine);
+
+    char *args[] = {(char *) "/bin/bash", (char *) "-c", (char *) cmdCopy.c_str(), nullptr};
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        setpgrp();
+        int res = execv(args[0], args);
+        if (res == -1) {
+            logErrorSystemCall("execv");
+        }
+        exit(0);
+
+    } else if (pid == -1) {
+        logErrorSystemCall("fork");
+    } else {
+        setFg(this, pid);
+        int wstatus;
+        waitpid(-1, &wstatus, WUNTRACED);
+    }
+}
+
+void ForegroundCommand::execute() {
+    job->print();
+
+    auto killRes = kill(job->pid, SIGCONT);
+    if (killRes == -1) {
+        logErrorSystemCall("kill");
+    } else {
+        // Remove the job from job list after bringing to fg
+        auto jobList = SmallShell::jobsList;
+        jobList->removeJobById(job->jobId);
+
+        delete SmallShell::fgProcess;
+
+        SmallShell::fgProcess = job;
+        int wstatus;
+        waitpid(-1, &wstatus, WUNTRACED);
+    }
+}
+
 void ChangeDirCommand::execute() {
     string back_up_last_pwd = string(SmallShell::last_pwd);
 
@@ -179,30 +227,6 @@ void ShowPidCommand::execute() {
     cout << "smash pid is " << id << endl;
 }
 
-void ExternalCommand::execute() {
-    auto cmdCopy = string(cmdLine);
-
-    char *args[] = {(char *) "/bin/bash", (char *) "-c", (char *) cmdCopy.c_str(), nullptr};
-    pid_t pid = fork();
-
-    if (pid == 0) {
-        setpgrp();
-        int res = execv(args[0], args);
-        if (res == -1) {
-            logErrorSystemCall("execv");
-        }
-        exit(0);
-
-    } else if (pid == -1) {
-        logErrorSystemCall("fork");
-    } else {
-        auto time = getCurrentTime();
-        SmallShell::jobsList->addJob(this, pid, time);
-        SmallShell::fgProcess->setPid(pid);
-        waitWithTrace();
-    }
-}
-
 void HistoryCommand::execute() {
     _history->printHistory();
 }
@@ -229,20 +253,4 @@ void QuitCommand::execute() {
         jobs->killAllJobs();
     }
     exit(0);
-}
-
-void ForegroundCommand::execute() {
-    job->print();
-
-    auto killRes = kill(job->pid, SIGCONT);
-    if (killRes == -1) {
-        logErrorSystemCall("kill");
-    } else {
-        // Remove the job from job list after bringing to fg
-        auto jobList = SmallShell::jobsList;
-        jobList->removeJobById(job->jobId);
-
-        SmallShell::fgProcess->setPid(job->pid);
-        waitWithTrace();
-    }
 }

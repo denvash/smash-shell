@@ -5,6 +5,8 @@
 #include <cstring>
 #include <sstream>
 #include <algorithm>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #if 0
 #define FUNC_ENTRY()  \
