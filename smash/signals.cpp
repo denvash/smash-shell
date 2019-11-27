@@ -7,33 +7,31 @@ using namespace std;
 
 void ctrlCHandler(int sig_num) {
     cout << "smash: got ctrl-C" << endl;
-    auto fgPid = SmallShell::fgPid;
+    auto fg = SmallShell::fgProcess;
 
     // Don't do anything if no fg process
-    if (fgPid == -1) {
+    if (fg->pid == -1) {
         return;
     }
 
-    auto killRes = kill(fgPid, SIGKILL);
+    auto killRes = kill(fg->pid, SIGKILL);
 
     if (killRes == -1) {
         logErrorSystemCall("kill");
     } else {
-        cout << "smash: process " << fgPid << " was killed" << endl;
+        cout << "smash: process " << fg->pid << " was killed" << endl;
 
         // TODO: remove from jobs on kill
-        SmallShell::fgPid = -1;
+        SmallShell::fgProcess->resetPid();
     }
 }
 
 void ctrlZHandler(int sig_num) {
     cout << "smash: got ctrl-Z" << endl;
-    auto fgPid = SmallShell::fgPid;
-
-    cout << getpid() << endl;
+    auto fg = SmallShell::fgProcess;
 
     // Don't do anything if no fg process
-    if (fgPid == -1) {
+    if (fg->pid == -1) {
         return;
     }
 
@@ -45,13 +43,13 @@ void ctrlZHandler(int sig_num) {
     lastJob->isStopped = true;
     lastJob->endTime = time;
 
-    auto killRes = kill(fgPid, SIGSTOP);
+    auto killRes = kill(fg->pid, SIGSTOP);
 
     if (killRes == -1) {
         logErrorSystemCall("kill");
     } else {
-        cout << "smash: process " << fgPid << " was stopped" << endl;
-        SmallShell::fgPid = -1;
+        cout << "smash: process " << fg->pid << " was stopped" << endl;
+        fg->pid = -1;
     }
 
 }

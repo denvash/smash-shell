@@ -391,15 +391,32 @@ private:
         last_pwd = "";
         history = new CommandsHistory();
         jobsList = new JobsList();
-        fgPid = -1;
+        fgProcess = new FgProcess(-1, getCurrentTime(), getCurrentTime());
     }
 
 
 public:
+    struct FgProcess {
+        pid_t pid;
+        time_t startTime;
+        time_t endTime;
+
+        void setPid(pid_t pid) {
+            this->pid = pid;
+        }
+
+        void resetPid() {
+            pid = -1;
+        }
+
+        explicit FgProcess(pid_t pid, time_t startTime, time_t endTime) : pid(pid), startTime(startTime),
+                                                                          endTime(endTime) {}
+    };
+
     static string last_pwd;
     static CommandsHistory *history;
     static JobsList *jobsList;
-    static pid_t fgPid;
+    static FgProcess *fgProcess;
 
     static Command *createCommand(const string &cmdLine);
 

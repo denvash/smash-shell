@@ -10,7 +10,12 @@ using namespace std;
 string SmallShell::last_pwd;
 CommandsHistory *SmallShell::history;
 JobsList *SmallShell::jobsList;
-pid_t SmallShell::fgPid;
+SmallShell::FgProcess *SmallShell::fgProcess;
+
+void waitWithTrace() {
+    int wstatus;
+    waitpid(-1, &wstatus, WUNTRACED);
+}
 
 void SmallShell::executeCommand(const char *cmdBuffer) {
     auto cmdCopy = string(cmdBuffer);
@@ -193,10 +198,8 @@ void ExternalCommand::execute() {
     } else {
         auto time = getCurrentTime();
         SmallShell::jobsList->addJob(this, pid, time);
-
-        SmallShell::fgPid = pid;
-        int wstatus;
-        waitpid(-1, &wstatus, WUNTRACED);
+        SmallShell::fgProcess->setPid(pid);
+        waitWithTrace();
     }
 }
 
@@ -234,7 +237,12 @@ void ForegroundCommand::execute() {
     auto killRes = kill(job->pid, SIGCONT);
     if (killRes == -1) {
         logErrorSystemCall("kill");
-    }
+    } else {
+        // Remove the job from job list after bringing to fg
+        auto jobList = SmallShell::jobsList;
+        jobList->removeJobById(job->jobId);
 
-    wait(nullptr);
+        SmallShell::fgProcess->setPid(job->pid);
+        waitWithTrace();
+    }
 }
