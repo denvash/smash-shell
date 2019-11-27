@@ -5,6 +5,7 @@
 #include <vector>
 #include <iomanip>
 #include "utils.h"
+#include <unistd.h>
 
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
@@ -16,9 +17,9 @@ using namespace std;
 
 class Command {
 public:
-    string cmd_line;
+    string cmdLine;
 
-    explicit Command(string cmdLine) : cmd_line(std::move(cmdLine)) {
+    explicit Command(string cmdLine) : cmdLine(std::move(cmdLine)) {
 
     }
 
@@ -46,22 +47,27 @@ public:
                                                                                          startTime(startTime),
                                                                                          endTime(),
                                                                                          isStopped(isStopped) {}
+
+        void print() {
+            std::cout << pid << ": " << cmd->cmdLine << endl;
+        }
     };
 
     vector<JobEntry *> jobs;
 
-    JobsList() : jobs() {};
+    JobsList() : jobs() {
+    };
 
     ~JobsList() = default;
 
     void addJob(Command *cmd, pid_t pid, time_t startTime, bool isStopped = false) {
-        jobs.push_back(new JobEntry(pid, cmd, jobs.size() + 1, startTime, isStopped));
+        jobs.push_back(new JobEntry(pid, cmd, (int) jobs.size() + 1, startTime, isStopped));
     }
 
     void printJobsList() {
         for (auto jobEntry : jobs) {
             auto jobId = jobEntry->jobId;
-            auto cmd_line = jobEntry->cmd->cmd_line;
+            auto cmd_line = jobEntry->cmd->cmdLine;
             auto pid = jobEntry->pid;
             auto startTime = jobEntry->startTime;
             auto endTime = jobEntry->endTime;
@@ -71,7 +77,7 @@ public:
             auto resTime = time(&currentTime);
 
             if (resTime == -1) {
-                systemCallError("time");
+                logErrorSystemCall("time");
             }
 
             auto time = difftime(isStopped ? endTime : currentTime, startTime);
@@ -80,15 +86,28 @@ public:
         }
     }
 
-    void killAllJobs();
+    void killAllJobs() {
+        for (auto &job : jobs) {
+            auto killRes = kill(job->pid, SIGKILL);
+            if (killRes == -1) {
+                logErrorSystemCall("kill");
+            } else {
+                job->print();
+            }
+        }
+    }
 
     void removeFinishedJobs();
 
-    JobEntry *getJobById(int jobId);
+    JobEntry *getJobById(size_t jobId) {
+        return jobId - 1 < jobs.size() ? jobs[jobId - 1] : nullptr;
+    }
 
     void removeJobById(int jobId);
 
-    JobEntry *getLastJob(int *lastJobId);
+    JobEntry *getLastJob() {
+        return jobs.empty() ? nullptr : jobs.back();
+    }
 
     JobEntry *getLastStoppedJob(int *jobId);
 };
@@ -100,25 +119,25 @@ private:
     int time;
 public:
     class CommandHistoryEntry {
-        const string _cmd_line;
         int timestamp;
 
     public:
-        CommandHistoryEntry() : _cmd_line(), timestamp() {}
+        Command *cmd;
 
-        explicit CommandHistoryEntry(const string &cmd_line, int timestamp) : _cmd_line(string(cmd_line)),
-                                                                              timestamp(timestamp) {}
+        CommandHistoryEntry() : timestamp(), cmd() {}
+
+        explicit CommandHistoryEntry(Command *cmd, int timestamp) : timestamp(timestamp), cmd(cmd) {}
 
         void setTimestamp(int time) {
             timestamp = time;
         }
 
         bool isEqual(const string &cmd_line) {
-            return _cmd_line == cmd_line;
+            return cmd->cmdLine == cmd_line;
         }
 
         void print() {
-            cout << right << setw(5) << timestamp << " " << _cmd_line << endl;
+            cout << right << setw(5) << timestamp << " " << cmd->cmdLine << endl;
         }
     };
 
@@ -130,15 +149,15 @@ public:
 
     CommandHistoryEntry *history[HISTORY_MAX_RECORDS];
 
-    void addRecord(const string &cmd_line) {
+    void addRecord(Command *cmd) {
         increaseTime();
         auto lastIndex = (current_index == 0 ? HISTORY_MAX_RECORDS : current_index) - 1;
 
         auto last = history[lastIndex];
-        if (last != nullptr && last->isEqual(cmd_line)) {
+        if (last != nullptr && last->isEqual(cmd->cmdLine)) {
             last->setTimestamp(time);
         } else {
-            history[current_index] = new CommandHistoryEntry(cmd_line, time);
+            history[current_index] = new CommandHistoryEntry(cmd, time);
             current_index++;
         }
 
@@ -177,6 +196,11 @@ public:
 
     void increaseTime() {
         time++;
+    }
+
+    Command *getLastCmd() {
+        auto lastIndex = (isOverlap && current_index == 0 ? HISTORY_MAX_RECORDS : current_index) - 1;
+        return history[lastIndex]->cmd;
     }
 };
 
@@ -270,10 +294,14 @@ public:
 };
 
 class QuitCommand : public BuiltInCommand {
-// TODO: Add your data members public:
-    QuitCommand(const char *cmd_line, JobsList *jobs);
+    bool isKill;
+    JobsList *jobs;
 
-    virtual ~QuitCommand() {}
+public:
+    QuitCommand(string cmdLine, bool isKill, JobsList *jobs) : BuiltInCommand(std::move(cmdLine)), isKill(isKill),
+                                                               jobs(jobs) {}
+
+    ~QuitCommand() override = default;
 
     void execute() override;
 };
@@ -290,21 +318,23 @@ public:
 };
 
 class KillCommand : public BuiltInCommand {
-    // TODO: Add your data members
+    int signal;
+    pid_t pid;
 public:
-    KillCommand(const char *cmd_line, JobsList *jobs);
+    KillCommand(string cmdLine, int signal, pid_t pid) : BuiltInCommand(std::move(cmdLine)), signal(signal), pid(pid) {}
 
-    virtual ~KillCommand() {}
+    ~KillCommand() override = default;
 
     void execute() override;
 };
 
 class ForegroundCommand : public BuiltInCommand {
-    // TODO: Add your data members
+    JobsList::JobEntry *job;
 public:
-    ForegroundCommand(const char *cmd_line, JobsList *jobs);
+    ForegroundCommand(string cmdLine, JobsList::JobEntry *jobEntry) : BuiltInCommand(std::move(cmdLine)),
+                                                                      job(jobEntry) {}
 
-    virtual ~ForegroundCommand() {}
+    ~ForegroundCommand() override = default;
 
     void execute() override;
 };
@@ -336,6 +366,7 @@ private:
         last_pwd = "";
         history = new CommandsHistory();
         jobsList = new JobsList();
+        fgPid = getpid();
     }
 
 
@@ -343,8 +374,9 @@ public:
     static string last_pwd;
     static CommandsHistory *history;
     static JobsList *jobsList;
+    static pid_t fgPid;
 
-    static Command *createCommand(const string& cmdLine);
+    static Command *createCommand(const string &cmdLine);
 
     SmallShell(SmallShell const &) = delete; // disable copy ctor
     void operator=(SmallShell const &) = delete; // disable = operator
@@ -356,14 +388,6 @@ public:
     ~SmallShell() = default;
 
     static void executeCommand(const char *cmdBuffer);
-
-    static void logError(const string &message) {
-        cout << "smash error: " << message << endl;
-    }
-
-    static void logDebug(const string &message) {
-        cout << "smash debug: " << message << endl;
-    }
 };
 
 #endif //SMASH_COMMAND_H_

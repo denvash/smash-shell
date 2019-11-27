@@ -1,17 +1,17 @@
 #include <iostream>
 #include <csignal>
-#include "Commands.h"
+#include "commands.h"
 #include "signals.h"
 
 int main(int argc, char *argv[]) {
+    SmallShell &smash = SmallShell::getInstance();
+
     if (signal(SIGTSTP, ctrlZHandler) == SIG_ERR) {
         perror("smash error: failed to set ctrl-Z handler");
     }
     if (signal(SIGINT, ctrlCHandler) == SIG_ERR) {
         perror("smash error: failed to set ctrl-C handler");
     }
-
-    SmallShell &smash = SmallShell::getInstance();
 
     while (true) {
         std::cout << "smash> ";

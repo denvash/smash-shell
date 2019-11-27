@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <sstream>
+#include <algorithm>
 
 #if 0
 #define FUNC_ENTRY()  \
@@ -75,9 +76,50 @@ inline void removeBackgroundSign(char *cmd_line) {
     cmd_line[str.find_last_not_of(whitespace, idx - 1) + 1] = 0;
 }
 
-inline void systemCallError(const string &sys_call_name) {
+inline void logErrorSystemCall(const string &sys_call_name) {
     string message = "smash error: " + sys_call_name + " failed";
     perror(message.c_str());
+}
+
+inline int toNumber(const std::string &s) {
+    int i;
+    try {
+        i = std::stoi(s);
+    } catch (std::invalid_argument &) {
+        return -1;
+    }
+
+    return i;
+}
+
+inline int parseSignalArg(const std::string &s) {
+    string signalStr;
+    signalStr.reserve(s.size());
+    for (size_t i = 1; i < s.size(); ++i) signalStr += s[i];
+    return toNumber(signalStr);
+}
+
+inline int isSignal(int signalNumber) {
+    return !(1 <= signalNumber && signalNumber <= 31);
+}
+
+inline void logError(const string &message) {
+    cout << "smash error: " << message << endl;
+}
+
+inline void logDebug(const string &message) {
+    cout << "smash debug: " << message << endl;
+}
+
+inline time_t getStartTime() {
+    time_t startTime;
+    auto timeRes = time(&startTime);
+
+    if (timeRes == -1) {
+        logErrorSystemCall("time");
+    }
+
+    return startTime;
 }
 
 #endif //OS_HW1_WET_UTILS_H
