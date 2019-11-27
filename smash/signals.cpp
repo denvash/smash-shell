@@ -7,12 +7,10 @@ using namespace std;
 
 void ctrlCHandler(int sig_num) {
     cout << "smash: got ctrl-C" << endl;
-
-    auto shellPid = getpid();
     auto fgPid = SmallShell::fgPid;
 
     // Don't do anything if no fg process
-    if (shellPid == fgPid) {
+    if (fgPid == -1) {
         return;
     }
 
@@ -22,34 +20,35 @@ void ctrlCHandler(int sig_num) {
         logErrorSystemCall("kill");
     } else {
         cout << "smash: process " << fgPid << " was killed" << endl;
-        SmallShell::fgPid = shellPid;
+        SmallShell::fgPid = -1;
     }
 }
 
 void ctrlZHandler(int sig_num) {
     cout << "smash: got ctrl-Z" << endl;
-    auto shellPid = getpid();
-
     auto fgPid = SmallShell::fgPid;
 
+    cout << getpid() << endl;
+
     // Don't do anything if no fg process
-    if (shellPid == fgPid) {
+    if (fgPid == -1) {
         return;
     }
 
-//    auto history = SmallShell::history;
-//
-//    auto jobsList = SmallShell::jobsList;
-//    auto timeRes = getStartTime();
-//    auto cmd = history->getLastCmd();
-//    jobsList->addJob(cmd, fgPid, timeRes, true);
+    auto history = SmallShell::history;
 
-    auto killRes = kill(shellPid, SIGSTOP);
+    auto jobsList = SmallShell::jobsList;
+    auto timeRes = getStartTime();
+    auto cmd = history->getLastCmd();
+    jobsList->addJob(cmd, fgPid, timeRes, true);
+
+    auto killRes = kill(fgPid, SIGSTOP);
 
     if (killRes == -1) {
         logErrorSystemCall("kill");
     } else {
-//        cout << "smash: process " << fgPid << " was stopped" << endl;
-        SmallShell::fgPid = shellPid;
+        cout << "smash: process " << fgPid << " was stopped" << endl;
+        SmallShell::fgPid = -1;
     }
+
 }

@@ -366,7 +366,7 @@ private:
         last_pwd = "";
         history = new CommandsHistory();
         jobsList = new JobsList();
-        fgPid = getpid();
+        fgPid = -1;
     }
 
 

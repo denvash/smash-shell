@@ -43,8 +43,6 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
         }
     } else {
         cmd->execute();
-//        int wstatus;
-//        waitpid(0, &wstatus, WNOHANG);
     }
 
 }
@@ -195,8 +193,8 @@ void ExternalCommand::execute() {
         logErrorSystemCall("fork");
     } else {
         SmallShell::fgPid = pid;
-        // Must wait
-        wait(nullptr);
+        int wstatus;
+        waitpid(-1, &wstatus, WUNTRACED);
     }
 }
 
