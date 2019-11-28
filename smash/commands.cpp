@@ -4,8 +4,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <ctime>
+#include <fcntl.h>
 #include "commands.h"
-
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 using namespace std;
 
@@ -43,7 +46,7 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
             cmd->execute();
             exit(0);
         } else if (pid == -1) {
-            logErrorSystemCall("fork");
+            logSysCallError("fork");
         } else {
             auto jobStartTime = getCurrentTime();
             cmd->cmdLine = string(cmdBuffer);
@@ -174,6 +177,11 @@ Command *SmallShell::createCommand(const string &cmdLine) {
             return nullptr;
         }
         return new BackgroundCommand(cmdLine, jobEntry);
+    } else if (cmd == "cp") {
+        auto pathSource = string(args[1]);
+        auto pathTarget = string(args[2]);
+
+        return new CopyCommand(cmdLine, pathSource, pathTarget);
     } else {
         return new ExternalCommand(cmdLine);
     }
@@ -190,12 +198,12 @@ void ExternalCommand::execute() {
         setpgrp();
         int res = execv(args[0], args);
         if (res == -1) {
-            logErrorSystemCall("execv");
+            logSysCallError("execv");
         }
         exit(0);
 
     } else if (pid == -1) {
-        logErrorSystemCall("fork");
+        logSysCallError("fork");
     } else {
         setFg(this, pid);
         int wstatus;
@@ -208,7 +216,7 @@ void ForegroundCommand::execute() {
 
     auto killRes = kill(job->pid, SIGCONT);
     if (killRes == -1) {
-        logErrorSystemCall("kill");
+        logSysCallError("kill");
     } else {
         // Remove the job from job list after bringing to fg
         auto jobList = SmallShell::jobsList;
@@ -228,7 +236,7 @@ void BackgroundCommand::execute() {
     auto killRes = kill(job->pid, SIGCONT);
 
     if (killRes == -1) {
-        logErrorSystemCall("kill");
+        logSysCallError("kill");
     } else {
         job->isStopped = false;
     }
@@ -242,7 +250,7 @@ void ChangeDirCommand::execute() {
         if (getcwd(cwd, sizeof(cwd)) != nullptr) {
             SmallShell::last_pwd = string(cwd);
         } else {
-            logErrorSystemCall("getcwd");
+            logSysCallError("getcwd");
         }
     }
 
@@ -251,7 +259,7 @@ void ChangeDirCommand::execute() {
         if (!SmallShell::last_pwd.empty()) {
             SmallShell::last_pwd = string(back_up_last_pwd);
         }
-        logErrorSystemCall("chdir");
+        logSysCallError("chdir");
     }
 
 }
@@ -281,7 +289,7 @@ void KillCommand::execute() {
     auto killRes = kill(pid, signal);
 
     if (killRes == -1) {
-        logErrorSystemCall("kill");
+        logSysCallError("kill");
     } else {
         auto jobList = SmallShell::jobsList;
         auto job = jobList->getJobByPid(pid);
@@ -294,4 +302,43 @@ void QuitCommand::execute() {
         jobs->killAllJobs();
     }
     exit(0);
+}
+
+void CopyCommand::execute() {
+
+    auto fdSource = open(source.c_str(), O_RDONLY);
+    auto fdTarget = open(target.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+    if (fdSource == -1 || fdTarget == -1) {
+        logSysCallError("open");
+    } else {
+        char buf[1024];
+
+        while (true) {
+            auto readCount = read(fdSource, &buf, 1024);
+
+            if (readCount == -1) {
+                logSysCallError("read");
+            } else if (readCount == 0) {
+                break;
+            }
+
+            auto writeRes = write(fdTarget, &buf, readCount);
+
+            if (writeRes == -1) {
+                logSysCallError("read");
+            }
+
+
+        }
+
+        auto closeSource = close(fdSource);
+        auto closeTarget = close(fdTarget);
+
+        if (closeSource == -1 || closeTarget == -1) {
+            logSysCallError("open");
+        } else {
+            cout << "smash: " << source << " was copied to " << target << endl;
+        }
+    }
 }

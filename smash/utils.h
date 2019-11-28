@@ -78,7 +78,7 @@ inline void removeBackgroundSign(char *cmd_line) {
     cmd_line[str.find_last_not_of(whitespace, idx - 1) + 1] = 0;
 }
 
-inline void logErrorSystemCall(const string &sys_call_name) {
+inline void logSysCallError(const string &sys_call_name) {
     string message = "smash error: " + sys_call_name + " failed";
     perror(message.c_str());
 }
@@ -118,7 +118,7 @@ inline time_t getCurrentTime() {
     auto timeRes = time(&currTime);
 
     if (timeRes == -1) {
-        logErrorSystemCall("time");
+        logSysCallError("time");
     }
 
     return currTime;

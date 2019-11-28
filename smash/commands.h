@@ -71,7 +71,7 @@ public:
         auto resTime = time(&currentTime);
 
         if (resTime == -1) {
-            logErrorSystemCall("time");
+            logSysCallError("time");
         }
 
         jobs.push_back(new JobEntry(pid, cmd, (int) jobs.size() + 1, startTime, currentTime, isStopped));
@@ -95,7 +95,7 @@ public:
             auto resTime = time(&currentTime);
 
             if (resTime == -1) {
-                logErrorSystemCall("time");
+                logSysCallError("time");
             }
 
             auto time = difftime(isStopped ? endTime : currentTime, startTime);
@@ -109,7 +109,7 @@ public:
         for (auto &job : jobs) {
             auto killRes = kill(job->pid, SIGKILL);
             if (killRes == -1) {
-                logErrorSystemCall("kill");
+                logSysCallError("kill");
             } else {
                 job->print();
             }
@@ -391,10 +391,13 @@ public:
 };
 
 class CopyCommand : public BuiltInCommand {
+    string source;
+    string target;
 public:
-    CopyCommand(const char *cmd_line);
+    CopyCommand(string cmdLine, string source, string target) : BuiltInCommand(std::move(cmdLine)), source(std::move(source)),
+                                                                target(std::move(target)) {}
 
-    virtual ~CopyCommand() {}
+    ~CopyCommand() override = default;
 
     void execute() override;
 };

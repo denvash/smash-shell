@@ -17,7 +17,7 @@ void ctrlCHandler(int sig_num) {
     auto killRes = kill(fg->pid, SIGKILL);
 
     if (killRes == -1) {
-        logErrorSystemCall("kill");
+        logSysCallError("kill");
     } else {
         cout << "smash: process " << fg->pid << " was killed" << endl;
 
@@ -38,7 +38,7 @@ void ctrlZHandler(int sig_num) {
     auto killRes = kill(fg->pid, SIGSTOP);
 
     if (killRes == -1) {
-        logErrorSystemCall("kill");
+        logSysCallError("kill");
     } else {
 
         auto jobsList = SmallShell::jobsList;
