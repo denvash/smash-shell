@@ -304,6 +304,10 @@ void QuitCommand::execute() {
     exit(0);
 }
 
+void PipeCommand::execute(){
+    //
+}
+
 void CopyCommand::execute() {
 
     auto fdSource = open(source.c_str(), O_RDONLY);
