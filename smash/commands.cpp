@@ -68,11 +68,11 @@ Command *SmallShell::createCommand(const string &cmdLine) {
     }
     //Check if pipeline or redirection command
 
-    if(isPipeCommand((char*)cmdLine.c_str()))
-        return new PipeCommand((char*)cmdLine.c_str());
+    if(isPipeCommand(cmdLine.c_str()))
+        return new PipeCommand(cmdLine.c_str());
 
-    if(isRedirectionCommand((char*)cmdLine.c_str()))
-        return new RedirectionCommand((char*)cmdLine.c_str());
+    if(isRedirectionCommand(cmdLine.c_str()))
+        return new RedirectionCommand(cmdLine.c_str());
 
     //Regular Command
 
@@ -321,6 +321,7 @@ void PipeCommand::execute(){
 
 void RedirectionCommand::execute() {
     int redirectionSignIndex=cmdLine.find('<');
+//    size_t redirectionSignIndexcmdLine.find('<');
     bool isAppend=cmdLine[redirectionSignIndex+1] && cmdLine[redirectionSignIndex+1]=='<';
 
     auto cmd=SmallShell::createCommand(cmdLine.substr(0,redirectionSignIndex-1));
@@ -328,7 +329,8 @@ void RedirectionCommand::execute() {
     char *args_chars[COMMAND_MAX_ARGS];
     int args_size=_parseCommandLine((char*)cmdLine.substr(redirectionSignIndex+(int)isAppend+1)
             .c_str(),args_chars);
-
+    if(args_size>1)
+        perror("too many arguments for redirect");
     int pipeLine[2];
 
     pipe(pipeLine);

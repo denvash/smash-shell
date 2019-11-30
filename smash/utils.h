@@ -62,12 +62,18 @@ inline bool isBackgroundCommand(const char *cmd_line) {
 
 inline bool isPipeCommand(const char *cmd_line){
     const string str(cmd_line);
-    return str[str.find('|')]== '|';
+    if(str.find('|')==std::string::npos)
+        return false;
+    else
+        return str[str.find('|')]== '|';
 }
 
 inline bool isRedirectionCommand(const char *cmd_line){
     const string str(cmd_line);
-    return str[str.find('>')]== '>';
+    if(str.find('>')==std::string::npos)
+        return false;
+    else
+        return str[str.find('>')]== '>';
 }
 
 
