@@ -320,9 +320,20 @@ void PipeCommand::execute(){
 }
 
 void RedirectionCommand::execute() {
-    char* cmdLineCopy=strcpy((char*)cmdLine.c_str());
-    int redirectionSignIndex=findRedirectionSignIndex((char*)cmdLine.c_str());
-    bool isAppend=():false;
+    int redirectionSignIndex=cmdLine.find('<');
+    bool isAppend=cmdLine[redirectionSignIndex+1] && cmdLine[redirectionSignIndex+1]=='<';
+
+    auto cmd=SmallShell::createCommand(cmdLine.substr(0,redirectionSignIndex-1));
+
+    char *args_chars[COMMAND_MAX_ARGS];
+    int args_size;
+    if(isAppend)
+        args_size=_parseCommandLine((char*)cmdLine.substr(redirectionSignIndex+2).c_str(),args_chars);
+    else
+        args_size=_parseCommandLine((char*)cmdLine.substr(redirectionSignIndex+1).c_str(),args_chars);
+
+    string fileDest(args_chars[0]);
+
 }
 
 void CopyCommand::execute() {
