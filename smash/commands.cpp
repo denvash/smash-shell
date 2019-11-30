@@ -27,6 +27,10 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
     auto cmdCopy = string(cmdBuffer);
 
     bool isBgCmd = isBackgroundCommand(cmdCopy.c_str());
+
+    int isPipeCmd= isPipeCommand(cmdCopy.c_str());
+    int isRedirectCmd=isRedirectionCommand(cmdCopy.c_str());
+
     removeBackgroundSign((char *) cmdCopy.c_str());
 
     auto tweakedCmdLine = string(cmdCopy);
