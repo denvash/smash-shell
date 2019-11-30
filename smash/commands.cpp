@@ -326,13 +326,46 @@ void RedirectionCommand::execute() {
     auto cmd=SmallShell::createCommand(cmdLine.substr(0,redirectionSignIndex-1));
 
     char *args_chars[COMMAND_MAX_ARGS];
-    int args_size;
-    if(isAppend)
-        args_size=_parseCommandLine((char*)cmdLine.substr(redirectionSignIndex+2).c_str(),args_chars);
-    else
-        args_size=_parseCommandLine((char*)cmdLine.substr(redirectionSignIndex+1).c_str(),args_chars);
+    int args_size=_parseCommandLine((char*)cmdLine.substr(redirectionSignIndex+(int)isAppend+1)
+            .c_str(),args_chars);
 
-    string fileDest(args_chars[0]);
+    int pipeLine[2];
+
+    pipe(pipeLine);
+
+    auto pid=fork();
+
+    if(pid){//son=cmd
+        dup2(pipeLine[1],1);
+        cmd->execute();
+    }else if(pid>0){//father
+        auto fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+        if (fdTarget == -1) {
+            logSysCallError("Redirect");
+        }else{
+            char buf[1024];
+
+            while (true) {
+                auto readCount = read(pipeLine[0], &buf, 1024);
+
+                if (readCount == -1) {
+                    logSysCallError("read");
+                } else if (readCount == 0) {
+                    break;
+                }
+
+                auto writeRes = write(fdTarget, &buf, readCount);
+
+                if (writeRes == -1) {
+                    logSysCallError("read");
+                }
+            }
+        }
+    }
+
+
+
 
 }
 
