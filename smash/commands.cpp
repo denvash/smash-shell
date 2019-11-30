@@ -337,9 +337,18 @@ void RedirectionCommand::execute() {
 
     if(pid){//son=cmd
         dup2(pipeLine[1],1);
+        close(pipeLine[1]);
+        setpgrp();
         cmd->execute();
+        exit(0);
     }else if(pid>0){//father
-        auto fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+        int fdTarget;
+        if(isAppend)
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT |O_APPEND, 0644);
+        else
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT |O_TRUNC,0644);
+
 
         if (fdTarget == -1) {
             logSysCallError("Redirect");
@@ -361,7 +370,15 @@ void RedirectionCommand::execute() {
                     logSysCallError("read");
                 }
             }
+
+            auto closeTarget = close(fdTarget);
+
+            if ( closeTarget == -1) {
+                logSysCallError("open");
+            }
         }
+    }else{//fork failed
+        logSysCallError("fork");
     }
 
 
