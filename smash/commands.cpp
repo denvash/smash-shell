@@ -28,14 +28,12 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
 
     bool isBgCmd = isBackgroundCommand(cmdCopy.c_str());
 
-    int isPipeCmd= isPipeCommand(cmdCopy.c_str());
-    int isRedirectCmd=isRedirectionCommand(cmdCopy.c_str());
-
     removeBackgroundSign((char *) cmdCopy.c_str());
 
     auto tweakedCmdLine = string(cmdCopy);
 
     auto cmd = createCommand(tweakedCmdLine);
+
     if (cmd == nullptr) {
         return;
     }
@@ -68,6 +66,15 @@ Command *SmallShell::createCommand(const string &cmdLine) {
     if (cmdLine.empty()) {
         return nullptr;
     }
+    //Check if pipeline or redirection command
+
+    if(isPipeCommand((char*)cmdLine.c_str()))
+        return new PipeCommand((char*)cmdLine.c_str());
+
+    if(isRedirectionCommand((char*)cmdLine.c_str()))
+        return new RedirectionCommand((char*)cmdLine.c_str());
+
+    //Regular Command
 
     char *args_chars[COMMAND_MAX_ARGS];
 
@@ -310,6 +317,12 @@ void QuitCommand::execute() {
 
 void PipeCommand::execute(){
     //
+}
+
+void RedirectionCommand::execute() {
+    char* cmdLineCopy=strcpy((char*)cmdLine.c_str());
+    int redirectionSignIndex=findRedirectionSignIndex((char*)cmdLine.c_str());
+    bool isAppend=():false;
 }
 
 void CopyCommand::execute() {

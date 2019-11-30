@@ -60,15 +60,21 @@ inline bool isBackgroundCommand(const char *cmd_line) {
 }
 
 
-inline int isPipeCommand(const char *cmd_line){
+inline bool isPipeCommand(const char *cmd_line){
     const string str(cmd_line);
-    return -1;
+    return str[str.find('|')]== '|';
 }
 
-inline int isRedirectionCommand(const char *cmd_line){
+inline bool isRedirectionCommand(const char *cmd_line){
     const string str(cmd_line);
-    return -1;
+    return str[str.find('>')]== '>';
 }
+
+
+
+
+
+
 
 
 inline void removeBackgroundSign(char *cmd_line) {
