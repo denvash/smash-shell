@@ -3,7 +3,6 @@
 #include <vector>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <typeinfo>
 #include <ctime>
 #include <fcntl.h>
 #include "commands.h"
@@ -331,10 +330,10 @@ void PipeCommand::execute() {
     if(pid==-1)//fork fail
         logSysCallError("open");
     else if(!pid){//son proc
+        setpgrp();
         close(pipeLine[1]);
         auto newStdIn=dup(0);
         dup2(pipeLine[0],0);
-        setpgrp();
         cmdTarget->execute();
         close(pipeLine[0]);
         close(newStdIn);
@@ -345,7 +344,6 @@ void PipeCommand::execute() {
             auto newStdErr=dup(2);
             dup2(pipeLine[1],2);
             close(pipeLine[1]);
-            setpgrp();
             cmdSource->execute();
             dup2(newStdErr,2);
             close(newStdErr);
@@ -353,17 +351,12 @@ void PipeCommand::execute() {
             auto newStdOut=dup(1);
             dup2(pipeLine[1],1);
             close(pipeLine[1]);
-            setpgrp();
             cmdSource->execute();
             dup2(newStdOut,1);
         }
         int wstatus;
         waitpid(pid, &wstatus, WUNTRACED);
     }
-
-
-
-
 }
 
 void RedirectionCommand::execute() {
@@ -392,7 +385,6 @@ void RedirectionCommand::execute() {
         auto newStdout=dup(1);
         dup2(fdTarget,1);
         close(fdTarget);
-        setpgrp();
         cmd->execute();
         dup2(newStdout,1);
         close(newStdout);
