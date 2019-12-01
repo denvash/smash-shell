@@ -66,12 +66,12 @@ Command *SmallShell::createCommand(const string &cmdLine) {
     if (cmdLine.empty()) {
         return nullptr;
     }
-    //Check if pipeline or redirection command
 
-    if(isPipeCommand(cmdLine.c_str()))
+    //Check if pipeline or redirection command
+    if (isPipeCommand(cmdLine.c_str()))
         return new PipeCommand(cmdLine.c_str());
 
-    if(isRedirectionCommand(cmdLine.c_str()))
+    if (isRedirectionCommand(cmdLine.c_str()))
         return new RedirectionCommand(cmdLine.c_str());
 
     //Regular Command
@@ -316,46 +316,46 @@ void QuitCommand::execute() {
     exit(0);
 }
 
-void PipeCommand::execute(){
+void PipeCommand::execute() {
     //
 }
 
 void RedirectionCommand::execute() {
-    int redirectionSignIndex=cmdLine.find('<');
+    int redirectionSignIndex = cmdLine.find('<');
 //    size_t redirectionSignIndexcmdLine.find('<');
-    bool isAppend=cmdLine[redirectionSignIndex+1] && cmdLine[redirectionSignIndex+1]=='<';
+    bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '<';
 
-    auto cmd=SmallShell::createCommand(cmdLine.substr(0,redirectionSignIndex-1));
+    auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex - 1));
 
     char *args_chars[COMMAND_MAX_ARGS];
-    int args_size=_parseCommandLine((char*)cmdLine.substr(redirectionSignIndex+(int)isAppend+1)
-            .c_str(),args_chars);
-    if(args_size>1)
+    int args_size = _parseCommandLine((char *) cmdLine.substr(redirectionSignIndex + (int) isAppend + 1)
+            .c_str(), args_chars);
+    if (args_size > 1)
         perror("too many arguments for redirect");
     int pipeLine[2];
 
     pipe(pipeLine);
 
-    auto pid=fork();
+    auto pid = fork();
 
-    if(pid){//son=cmd
-        dup2(pipeLine[1],1);
+    if (pid) {//son=cmd
+        dup2(pipeLine[1], 1);
         close(pipeLine[1]);
         setpgrp();
         cmd->execute();
         exit(0);
-    }else if(pid>0){//father
+    } else if (pid > 0) {//father
 
         int fdTarget;
-        if(isAppend)
-            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT |O_APPEND, 0644);
+        if (isAppend)
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
         else
-            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT |O_TRUNC,0644);
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
 
         if (fdTarget == -1) {
             logSysCallError("Redirect");
-        }else{
+        } else {
             char buf[1024];
 
             while (true) {
@@ -376,15 +376,13 @@ void RedirectionCommand::execute() {
 
             auto closeTarget = close(fdTarget);
 
-            if ( closeTarget == -1) {
+            if (closeTarget == -1) {
                 logSysCallError("open");
             }
         }
-    }else{//fork failed
+    } else {//fork failed
         logSysCallError("fork");
     }
-
-
 
 
 }
