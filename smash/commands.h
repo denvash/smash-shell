@@ -283,7 +283,7 @@ public:
 class PipeCommand : public Command {
     // TODO: Add your data members
 public:
-    PipeCommand(const char *cmd_line);
+    explicit PipeCommand(string cmdLine) : Command(std::move(cmdLine)) {};
 
     virtual ~PipeCommand() {}
 
@@ -293,7 +293,7 @@ public:
 class RedirectionCommand : public Command {
     // TODO: Add your data members
 public:
-    explicit RedirectionCommand(const char *cmd_line);
+    explicit RedirectionCommand(string cmdLine) : Command(std::move(cmdLine)) {};
 
 
     virtual ~RedirectionCommand() {}

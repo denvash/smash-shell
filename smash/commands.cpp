@@ -69,10 +69,10 @@ Command *SmallShell::createCommand(const string &cmdLine) {
 
     //Check if pipeline or redirection command
     if (isPipeCommand(cmdLine.c_str()))
-        return new PipeCommand(cmdLine.c_str());
+        return new PipeCommand(cmdLine);
 
     if (isRedirectionCommand(cmdLine.c_str()))
-        return new RedirectionCommand(cmdLine.c_str());
+        return new RedirectionCommand(cmdLine);
 
     //Regular Command
 
@@ -321,9 +321,10 @@ void PipeCommand::execute() {
 }
 
 void RedirectionCommand::execute() {
-    int redirectionSignIndex = cmdLine.find('<');
+    int redirectionSignIndex = cmdLine.find('>');
+
 //    size_t redirectionSignIndexcmdLine.find('<');
-    bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '<';
+    bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '>';
 
     auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex - 1));
 
@@ -332,18 +333,20 @@ void RedirectionCommand::execute() {
             .c_str(), args_chars);
     if (args_size > 1)
         perror("too many arguments for redirect");
+
     int pipeLine[2];
 
     pipe(pipeLine);
 
     auto pid = fork();
 
-    if (pid) {//son=cmd
+    if (!pid) {//son=cmd
         dup2(pipeLine[1], 1);
         close(pipeLine[1]);
         setpgrp();
         cmd->execute();
-        exit(0);
+        close(1);
+//        exit(0);
     } else if (pid > 0) {//father
 
         int fdTarget;
@@ -376,9 +379,14 @@ void RedirectionCommand::execute() {
 
             auto closeTarget = close(fdTarget);
 
-            if (closeTarget == -1) {
-                logSysCallError("open");
-            }
+            if (closeTarget == -1)
+                logSysCallError("close");
+
+
+            auto closeReadPipe=close(pipeLine[0]);
+            if(closeReadPipe==-1)
+                logSysCallError("close");
+
         }
     } else {//fork failed
         logSysCallError("fork");
