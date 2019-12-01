@@ -3,6 +3,7 @@
 #include <vector>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <typeinfo>
 #include <ctime>
 #include <fcntl.h>
 #include "commands.h"
@@ -317,13 +318,57 @@ void QuitCommand::execute() {
 }
 
 void PipeCommand::execute() {
-    //
+    int pipeSignIndex = cmdLine.find('|');
+    bool isPipeStdErr = cmdLine[pipeSignIndex + 1] && cmdLine[pipeSignIndex + 1] == '&';
+    auto cmdSource = SmallShell::createCommand(cmdLine.substr(0, pipeSignIndex - 1));
+    auto cmdTarget = SmallShell::createCommand(cmdLine.substr(pipeSignIndex + (int) isPipeStdErr + 1));
+
+    int pipeLine[2];
+    pipe(pipeLine);
+
+    auto pid=fork();
+
+    if(pid==-1)//fork fail
+        logSysCallError("open");
+    else if(!pid){//son proc
+        close(pipeLine[1]);
+        auto newStdIn=dup(0);
+        dup2(pipeLine[0],0);
+        setpgrp();
+        cmdTarget->execute();
+        close(pipeLine[0]);
+        close(newStdIn);
+        exit(0);
+    }else{//father proc
+        close(pipeLine[0]);
+        if(isPipeStdErr){
+            auto newStdErr=dup(2);
+            dup2(pipeLine[1],2);
+            close(pipeLine[1]);
+            setpgrp();
+            cmdSource->execute();
+            dup2(newStdErr,2);
+            close(newStdErr);
+        }else{
+            auto newStdOut=dup(1);
+            dup2(pipeLine[1],1);
+            close(pipeLine[1]);
+            setpgrp();
+            cmdSource->execute();
+            dup2(newStdOut,1);
+        }
+        int wstatus;
+        waitpid(pid, &wstatus, WUNTRACED);
+    }
+
+
+
+
 }
 
 void RedirectionCommand::execute() {
     int redirectionSignIndex = cmdLine.find('>');
 
-//    size_t redirectionSignIndexcmdLine.find('<');
     bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '>';
 
     auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex - 1));
@@ -352,74 +397,6 @@ void RedirectionCommand::execute() {
         dup2(newStdout,1);
         close(newStdout);
     }
-
-
-
-//    auto pid1 = fork();
-//
-//    if (!pid1) {//son= exec process
-//
-//        int pipeLine[2];
-//
-//        pipe(pipeLine);
-//        auto pid2=fork();
-//
-//        if(!pid2){// command process
-//            dup2(pipeLine[1], 1);
-//            close(pipeLine[1]);
-//            setpgrp();
-//            cmd->execute();
-//            close(1);
-//            exit(0);
-//        }else if(pid2>0){// exec process
-//            int fdTarget;
-//            if (isAppend)
-//                fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
-//            else
-//                fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-//
-//
-//            if (fdTarget == -1) {
-//                logSysCallError("Redirect");
-//            } else {
-//                char buf[1024];
-//
-//
-//
-//                while (true) {
-//                    auto readCount = read(pipeLine[0], &buf, 1024);
-//
-//                    if (readCount == -1) {
-//                        logSysCallError("read");
-//                    } else if (readCount == 0) {
-//                        break;
-//                    }
-//
-//                    auto writeRes = write(fdTarget, &buf, readCount);
-//
-//                    if (writeRes == -1) {
-//                        logSysCallError("read");
-//                    }
-//                }
-//
-//                auto closeTarget = close(fdTarget);
-//
-//                if (closeTarget == -1)
-//                    logSysCallError("close");
-//
-//
-//                auto closeReadPipe=close(pipeLine[0]);
-//                if(closeReadPipe==-1)
-//                    logSysCallError("close");
-//            }
-//        }else  if(pid2==-1){//fork failed
-//            logSysCallError("fork");
-//        }
-//
-//    } else  if(pid1==-1){//fork failed
-//        logSysCallError("fork");
-//    }
-
 
 }
 
