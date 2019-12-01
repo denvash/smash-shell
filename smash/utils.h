@@ -59,6 +59,30 @@ inline bool isBackgroundCommand(const char *cmd_line) {
     return str[str.find_last_not_of(whitespace)] == '&';
 }
 
+
+inline bool isPipeCommand(const char *cmd_line){
+    const string str(cmd_line);
+    if(str.find('|')==std::string::npos)
+        return false;
+    else
+        return str[str.find('|')]== '|';
+}
+
+inline bool isRedirectionCommand(const char *cmd_line){
+    const string str(cmd_line);
+    if(str.find('>')==std::string::npos)
+        return false;
+    else
+        return str[str.find('>')]== '>';
+}
+
+
+
+
+
+
+
+
 inline void removeBackgroundSign(char *cmd_line) {
     const string whitespace = " \t\n";
     const string str(cmd_line);

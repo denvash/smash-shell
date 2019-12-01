@@ -26,11 +26,13 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
     auto cmdCopy = string(cmdBuffer);
 
     bool isBgCmd = isBackgroundCommand(cmdCopy.c_str());
+
     removeBackgroundSign((char *) cmdCopy.c_str());
 
     auto tweakedCmdLine = string(cmdCopy);
 
     auto cmd = createCommand(tweakedCmdLine);
+
     if (cmd == nullptr) {
         return;
     }
@@ -64,6 +66,15 @@ Command *SmallShell::createCommand(const string &cmdLine) {
     if (cmdLine.empty()) {
         return nullptr;
     }
+    //Check if pipeline or redirection command
+
+    if(isPipeCommand(cmdLine.c_str()))
+        return new PipeCommand(cmdLine.c_str());
+
+    if(isRedirectionCommand(cmdLine.c_str()))
+        return new RedirectionCommand(cmdLine.c_str());
+
+    //Regular Command
 
     char *args_chars[COMMAND_MAX_ARGS];
 
@@ -303,6 +314,79 @@ void QuitCommand::execute() {
         jobs->killAllJobs();
     }
     exit(0);
+}
+
+void PipeCommand::execute(){
+    //
+}
+
+void RedirectionCommand::execute() {
+    int redirectionSignIndex=cmdLine.find('<');
+//    size_t redirectionSignIndexcmdLine.find('<');
+    bool isAppend=cmdLine[redirectionSignIndex+1] && cmdLine[redirectionSignIndex+1]=='<';
+
+    auto cmd=SmallShell::createCommand(cmdLine.substr(0,redirectionSignIndex-1));
+
+    char *args_chars[COMMAND_MAX_ARGS];
+    int args_size=_parseCommandLine((char*)cmdLine.substr(redirectionSignIndex+(int)isAppend+1)
+            .c_str(),args_chars);
+    if(args_size>1)
+        perror("too many arguments for redirect");
+    int pipeLine[2];
+
+    pipe(pipeLine);
+
+    auto pid=fork();
+
+    if(pid){//son=cmd
+        dup2(pipeLine[1],1);
+        close(pipeLine[1]);
+        setpgrp();
+        cmd->execute();
+        exit(0);
+    }else if(pid>0){//father
+
+        int fdTarget;
+        if(isAppend)
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT |O_APPEND, 0644);
+        else
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT |O_TRUNC,0644);
+
+
+        if (fdTarget == -1) {
+            logSysCallError("Redirect");
+        }else{
+            char buf[1024];
+
+            while (true) {
+                auto readCount = read(pipeLine[0], &buf, 1024);
+
+                if (readCount == -1) {
+                    logSysCallError("read");
+                } else if (readCount == 0) {
+                    break;
+                }
+
+                auto writeRes = write(fdTarget, &buf, readCount);
+
+                if (writeRes == -1) {
+                    logSysCallError("read");
+                }
+            }
+
+            auto closeTarget = close(fdTarget);
+
+            if ( closeTarget == -1) {
+                logSysCallError("open");
+            }
+        }
+    }else{//fork failed
+        logSysCallError("fork");
+    }
+
+
+
+
 }
 
 void CopyCommand::execute() {
