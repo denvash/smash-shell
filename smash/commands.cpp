@@ -349,6 +349,8 @@ void PipeCommand::execute() {
             logSysCallError("close");
         if(isPipeStdErr){
             auto newStdErr=dup(2);
+            if(newStdErr==-1)
+                logSysCallError("dup");
             if(dup2(pipeLine[1],2)==-1)
                 logSysCallError("dup2");
 
