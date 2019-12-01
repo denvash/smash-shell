@@ -109,10 +109,6 @@ inline void logError(const string &message) {
     cout << "smash error: " << message << endl;
 }
 
-inline void logDebug(const string &message) {
-    cout << "smash debug: " << message << endl;
-}
-
 inline time_t getCurrentTime() {
     time_t currTime;
     auto timeRes = time(&currTime);

@@ -22,7 +22,6 @@ void setFg(Command *cmd, pid_t pid) {
     SmallShell::fgProcess = new JobsList::JobEntry(pid, cmd, -1, getCurrentTime());
 }
 
-
 void SmallShell::executeCommand(const char *cmdBuffer) {
     auto cmdCopy = string(cmdBuffer);
 
@@ -37,6 +36,7 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
     }
 
     history->addRecord(cmd);
+    jobsList->removeFinishedJobs();
 
     if (isBgCmd) {
         auto pid = fork();
@@ -105,7 +105,7 @@ Command *SmallShell::createCommand(const string &cmdLine) {
         auto signalNumber = parseSignalArg(signalInput);
         auto jobId = toNumber(args[2]);
 
-        if (args_size > 3 || signalInput[0] != '-' || isSignal(signalNumber) || jobId == -1) {
+        if (args_size > 3 || signalInput[0] != '-' || jobId == -1) {
             logError("kill: invalid arguments");
             return nullptr;
         }
@@ -207,7 +207,7 @@ void ExternalCommand::execute() {
     } else {
         setFg(this, pid);
         int wstatus;
-        waitpid(-1, &wstatus, WUNTRACED);
+        waitpid(pid, &wstatus, WUNTRACED);
     }
 }
 
@@ -223,8 +223,8 @@ void ForegroundCommand::execute() {
         jobList->removeJobById(job->jobId);
 
         delete SmallShell::fgProcess;
-
         SmallShell::fgProcess = job;
+
         int wstatus;
         waitpid(-1, &wstatus, WUNTRACED);
     }
@@ -281,7 +281,8 @@ void HistoryCommand::execute() {
 }
 
 void JobsCommand::execute() {
-    _jobs->printJobsList();
+    jobs->removeFinishedJobs();
+    jobs->printJobsList();
 }
 
 void KillCommand::execute() {

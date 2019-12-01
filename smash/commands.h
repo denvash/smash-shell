@@ -73,8 +73,8 @@ public:
         if (resTime == -1) {
             logSysCallError("time");
         }
-
-        jobs.push_back(new JobEntry(pid, cmd, (int) jobs.size() + 1, startTime, currentTime, isStopped));
+        auto last = jobs.empty() ? 0 : jobs[jobs.size() - 1]->jobId;
+        jobs.push_back(new JobEntry(pid, cmd, (int) last + 1, startTime, currentTime, isStopped));
     }
 
     void addJob(JobEntry *job) {
@@ -106,6 +106,7 @@ public:
     }
 
     void killAllJobs() {
+        cout << "smash: sending SIGKILL signal to " << jobs.size() << " jobs:" << endl;
         for (auto &job : jobs) {
             auto killRes = kill(job->pid, SIGKILL);
             if (killRes == -1) {
@@ -116,7 +117,11 @@ public:
         }
     }
 
-    void removeFinishedJobs();
+    void removeFinishedJobs() {
+        for (auto job : jobs) {
+            removeByJobPid(job->pid);
+        }
+    }
 
     JobEntry *getJobById(size_t jobId) {
         return jobId - 1 < jobs.size() ? jobs[jobId - 1] : nullptr;
@@ -133,6 +138,19 @@ public:
 
     void removeJobById(int jobId) {
         jobs.erase(jobs.begin() + jobId - 1);
+    }
+
+    void removeByJobPid(pid_t pid) {
+        for (std::size_t i = 0; i < jobs.size(); i++) {
+            auto job = jobs[i];
+            if (pid == job->pid) {
+                int status;
+                int waitRes = waitpid(job->pid, &status, WNOHANG | WUNTRACED);
+                if (waitRes > 0 || WIFSTOPPED(status)) {
+                    jobs.erase(jobs.begin() + i);
+                }
+            }
+        }
     }
 
     JobEntry *getLastJob() {
@@ -177,7 +195,7 @@ public:
         }
 
         void print() {
-            cout << right << setw(5) << timestamp << " " << cmd->cmdLine << endl;
+            cout << right << setw(5) << timestamp << "  " << cmd->cmdLine << endl;
         }
     };
 
@@ -347,9 +365,9 @@ public:
 };
 
 class JobsCommand : public BuiltInCommand {
-    JobsList *_jobs;
+    JobsList *jobs;
 public:
-    JobsCommand(string cmdLine, JobsList *jobs) : BuiltInCommand(std::move(cmdLine)), _jobs(jobs) {
+    JobsCommand(string cmdLine, JobsList *jobs) : BuiltInCommand(std::move(cmdLine)), jobs(jobs) {
     }
 
     ~JobsCommand() override = default;
@@ -372,7 +390,8 @@ class ForegroundCommand : public BuiltInCommand {
     JobsList::JobEntry *job;
 public:
     ForegroundCommand(string cmdLine, JobsList::JobEntry *jobEntry) : BuiltInCommand(std::move(cmdLine)),
-                                                                      job(jobEntry) {}
+                                                                      job(jobEntry) {
+    }
 
     ~ForegroundCommand() override = default;
 
@@ -394,7 +413,8 @@ class CopyCommand : public BuiltInCommand {
     string source;
     string target;
 public:
-    CopyCommand(string cmdLine, string source, string target) : BuiltInCommand(std::move(cmdLine)), source(std::move(source)),
+    CopyCommand(string cmdLine, string source, string target) : BuiltInCommand(std::move(cmdLine)),
+                                                                source(std::move(source)),
                                                                 target(std::move(target)) {}
 
     ~CopyCommand() override = default;
