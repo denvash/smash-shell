@@ -147,7 +147,7 @@ Command *SmallShell::createCommand(const string &cmdLine) {
             return nullptr;
         }
 
-        return new BackgroundCommand(cmdLine, jobEntry);
+        return new ForegroundCommand(cmdLine, jobEntry);
     } else if (cmd == "bg") {
         if (args_size == 1) {
             auto lastEntry = jobsList->getLastStoppedJob();
