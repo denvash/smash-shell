@@ -334,72 +334,91 @@ void RedirectionCommand::execute() {
     if (args_size > 1)
         perror("too many arguments for redirect");
 
+    int fdTarget;
+    if (isAppend)
+        fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
+    else
+        fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
 
-    auto pid1 = fork();
-
-    if (!pid1) {//son= exec process
-
-        int pipeLine[2];
-
-        pipe(pipeLine);
-        auto pid2=fork();
-
-        if(!pid2){// command process
-            dup2(pipeLine[1], 1);
-            close(pipeLine[1]);
-            setpgrp();
-            cmd->execute();
-            close(1);
-            exit(0);
-        }else if(pid2>0){// exec process
-            int fdTarget;
-            if (isAppend)
-                fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
-            else
-                fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-
-
-            if (fdTarget == -1) {
-                logSysCallError("Redirect");
-            } else {
-                char buf[1024];
-
-
-
-                while (true) {
-                    auto readCount = read(pipeLine[0], &buf, 1024);
-
-                    if (readCount == -1) {
-                        logSysCallError("read");
-                    } else if (readCount == 0) {
-                        break;
-                    }
-
-                    auto writeRes = write(fdTarget, &buf, readCount);
-
-                    if (writeRes == -1) {
-                        logSysCallError("read");
-                    }
-                }
-
-                auto closeTarget = close(fdTarget);
-
-                if (closeTarget == -1)
-                    logSysCallError("close");
-
-
-                auto closeReadPipe=close(pipeLine[0]);
-                if(closeReadPipe==-1)
-                    logSysCallError("close");
-            }
-        }else  if(pid2==-1){//fork failed
-            logSysCallError("fork");
-        }
-
-    } else  if(pid1==-1){//fork failed
-        logSysCallError("fork");
+    if (fdTarget == -1)
+                logSysCallError("open");
+    else{
+        auto newStdout=dup(1);
+        dup2(fdTarget,1);
+        close(fdTarget);
+        setpgrp();
+        cmd->execute();
+        dup2(newStdout,1);
+        close(newStdout);
     }
+
+
+
+//    auto pid1 = fork();
+//
+//    if (!pid1) {//son= exec process
+//
+//        int pipeLine[2];
+//
+//        pipe(pipeLine);
+//        auto pid2=fork();
+//
+//        if(!pid2){// command process
+//            dup2(pipeLine[1], 1);
+//            close(pipeLine[1]);
+//            setpgrp();
+//            cmd->execute();
+//            close(1);
+//            exit(0);
+//        }else if(pid2>0){// exec process
+//            int fdTarget;
+//            if (isAppend)
+//                fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
+//            else
+//                fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+//
+//
+//            if (fdTarget == -1) {
+//                logSysCallError("Redirect");
+//            } else {
+//                char buf[1024];
+//
+//
+//
+//                while (true) {
+//                    auto readCount = read(pipeLine[0], &buf, 1024);
+//
+//                    if (readCount == -1) {
+//                        logSysCallError("read");
+//                    } else if (readCount == 0) {
+//                        break;
+//                    }
+//
+//                    auto writeRes = write(fdTarget, &buf, readCount);
+//
+//                    if (writeRes == -1) {
+//                        logSysCallError("read");
+//                    }
+//                }
+//
+//                auto closeTarget = close(fdTarget);
+//
+//                if (closeTarget == -1)
+//                    logSysCallError("close");
+//
+//
+//                auto closeReadPipe=close(pipeLine[0]);
+//                if(closeReadPipe==-1)
+//                    logSysCallError("close");
+//            }
+//        }else  if(pid2==-1){//fork failed
+//            logSysCallError("fork");
+//        }
+//
+//    } else  if(pid1==-1){//fork failed
+//        logSysCallError("fork");
+//    }
 
 
 }
