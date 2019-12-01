@@ -328,31 +328,54 @@ void PipeCommand::execute() {
     auto pid=fork();
 
     if(pid==-1)//fork fail
-        logSysCallError("open");
+        logSysCallError("fork");
     else if(!pid){//son proc
         setpgrp();
-        close(pipeLine[1]);
+        if(close(pipeLine[1])==-1)
+            logSysCallError("close");
         auto newStdIn=dup(0);
-        dup2(pipeLine[0],0);
+        if(newStdIn==-1)
+            logSysCallError("dup");
+        if(dup2(pipeLine[0],0)==-1)
+            logSysCallError("dup2");
+
         cmdTarget->execute();
-        close(pipeLine[0]);
-        close(newStdIn);
+
+        if(close(pipeLine[0])==-1 || close(newStdIn)==-1)
+            logSysCallError("close");
         exit(0);
     }else{//father proc
-        close(pipeLine[0]);
+        if(close(pipeLine[0])==-1)
+            logSysCallError("close");
         if(isPipeStdErr){
             auto newStdErr=dup(2);
-            dup2(pipeLine[1],2);
-            close(pipeLine[1]);
+            if(dup2(pipeLine[1],2)==-1)
+                logSysCallError("dup2");
+
+            if(close(pipeLine[1])==-1)
+                logSysCallError("close");
+
             cmdSource->execute();
-            dup2(newStdErr,2);
-            close(newStdErr);
+
+            if(dup2(newStdErr,2)==-1)
+                logSysCallError("dup2");
+            if(close(newStdErr)==-1)
+                logSysCallError("close");
         }else{
             auto newStdOut=dup(1);
-            dup2(pipeLine[1],1);
-            close(pipeLine[1]);
+            if(newStdOut==-1)
+                logSysCallError("dup");
+            if(dup2(pipeLine[1],1)==-1)
+                logSysCallError("dup2");
+            if(close(pipeLine[1])==-1)
+                logSysCallError("close");
+
             cmdSource->execute();
-            dup2(newStdOut,1);
+
+            if(dup2(newStdOut,1)==-1)
+                logSysCallError("dup2");
+            if(close(newStdOut)==-1)
+                logSysCallError("close");
         }
         int wstatus;
         waitpid(pid, &wstatus, WUNTRACED);
@@ -383,11 +406,19 @@ void RedirectionCommand::execute() {
                 logSysCallError("open");
     else{
         auto newStdout=dup(1);
-        dup2(fdTarget,1);
-        close(fdTarget);
+        if(newStdout==-1)
+            logSysCallError("dup");
+        if(dup2(fdTarget,1)==-1)
+            logSysCallError("dup2");
+        if(close(fdTarget)==-1)
+            logSysCallError("close");
+
         cmd->execute();
-        dup2(newStdout,1);
-        close(newStdout);
+
+        if(dup2(newStdout,1)==-1)
+            logSysCallError("dup2");
+        if(close(newStdout)==-1)
+            logSysCallError("close");
     }
 
 }
