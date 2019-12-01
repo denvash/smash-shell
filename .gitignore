@@ -118,3 +118,5 @@ _deps
 *.out
 *.app
 
+smash/smash
+*.o

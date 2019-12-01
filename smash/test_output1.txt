@@ -1,0 +1,19 @@
+smash> smash> smash> smash> smash> smash>     1  sleep 1
+    2  sleep 2
+    3  sleep 3
+    4  sleep 5&
+    5  sleep 10&
+    6  history
+smash>     1  sleep 1
+    2  sleep 2
+    3  sleep 3
+    4  sleep 5&
+    5  sleep 10&
+    7  history
+smash>     1  sleep 1
+    2  sleep 2
+    3  sleep 3
+    4  sleep 5&
+    5  sleep 10&
+    8  history
+smash> smash> smash: sending SIGKILL signal to 0 jobs:
