@@ -10,8 +10,8 @@ shell by typing commands that cause some actions.
 In this assignment, you are going to implement a “smash” (small shell) which will behave
 like a real Linux shell but it will support only a limited subset of Linux shell commands.
 
-- [Theoretical questions & answers](DHW1_320616105_314483686.pdf)
-- [Instructions](Instruction.pdf)
+- [Theoretical questions & answers](DHW1_320616105_314483686.pdf) (Hebrew)
+- [Instructions](Instruction.pdf) (English)
 
 ## Installation
 
@@ -25,7 +25,7 @@ make
 
 - As CMake project - target `CmakeLists.txt` with your IDEA.
 
-## Simple Running Example
+Simple running example:
 
 ```bash
 smash> sleep 100& 
