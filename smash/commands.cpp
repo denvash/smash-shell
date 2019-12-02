@@ -319,7 +319,7 @@ void QuitCommand::execute() {
 void PipeCommand::execute() {
     int pipeSignIndex = cmdLine.find('|');
     bool isPipeStdErr = cmdLine[pipeSignIndex + 1] && cmdLine[pipeSignIndex + 1] == '&';
-    auto cmdSource = SmallShell::createCommand(cmdLine.substr(0, pipeSignIndex - 1));
+    auto cmdSource = SmallShell::createCommand(cmdLine.substr(0, pipeSignIndex ));
     auto cmdTarget = SmallShell::createCommand(cmdLine.substr(pipeSignIndex + (int) isPipeStdErr + 1));
 
     int pipeLine[2];
@@ -389,7 +389,7 @@ void RedirectionCommand::execute() {
 
     bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '>';
 
-    auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex - 1));
+    auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex ));
 
     char *args_chars[COMMAND_MAX_ARGS];
     int args_size = _parseCommandLine((char *) cmdLine.substr(redirectionSignIndex + (int) isAppend + 1)
