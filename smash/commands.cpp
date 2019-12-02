@@ -457,11 +457,9 @@ void RedirectionCommand::execute() {
                 } else {
                     auto jobStartTime = getCurrentTime();
                     cmd->cmdLine = string(tweakedCmdLine);
-                    jobsList->addJob(cmd, pid, jobStartTime);
-                    jobsList->removeFinishedJobs();
+                    SmallShell::jobsList->addJob(cmd, pid, jobStartTime);
+//                    shell removes finished jobs when going back in the func stack
                 }
-
-
             }else{
                 auto newStdout = dup(1);
                 auto newStdErr=dup (2);
@@ -490,6 +488,7 @@ void RedirectionCommand::execute() {
                     logSysCallError("dup2");
                 if (close(newStdout) == -1 ||close(newStdErr)==-1 )
                     logSysCallError("close");
+
             }
 
         }
