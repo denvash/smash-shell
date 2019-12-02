@@ -56,7 +56,7 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
             auto jobStartTime = getCurrentTime();
             cmd->cmdLine = string(cmdBuffer);
             jobsList->addJob(cmd, pid, jobStartTime);
-//            jobsList->removeFinishedJobs();
+            jobsList->removeFinishedJobs();
         }
     } else {
         cmd->execute();
@@ -69,7 +69,7 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
 
         // Jobs list cleanup (removing finished jobs) should be done after each executed command
         // https://piazza.com/class/k1yxdx0sx3926r?cid=170
-//        jobsList->removeFinishedJobs();
+        jobsList->removeFinishedJobs();
     }
 }
 
@@ -143,7 +143,7 @@ Command *SmallShell::createCommand(const string &cmdLine) {
             return nullptr;
         }
 
-//        jobsList->removeFinishedJobs();
+        jobsList->removeFinishedJobs();
         return new KillCommand(cmdLine, signalNumber, jobEntry->pid);
     } else if (cmd == "quit") {
         bool isKill = args_size > 1 && args[1] == "kill";
@@ -152,7 +152,7 @@ Command *SmallShell::createCommand(const string &cmdLine) {
         }
         return new QuitCommand(cmdLine, isKill, jobsList);
     } else if (cmd == "fg") {
-//        jobsList->removeFinishedJobs();
+        jobsList->removeFinishedJobs();
         if (args_size == 1) {
             auto lastEntry = jobsList->getLastJob();
 
@@ -342,7 +342,7 @@ void QuitCommand::execute() {
 void PipeCommand::execute() {
     int pipeSignIndex = cmdLine.find('|');
     bool isPipeStdErr = cmdLine[pipeSignIndex + 1] && cmdLine[pipeSignIndex + 1] == '&';
-    auto cmdSource = SmallShell::createCommand(cmdLine.substr(0, pipeSignIndex ));
+    auto cmdSource = SmallShell::createCommand(cmdLine.substr(0, pipeSignIndex));
     auto cmdTarget = SmallShell::createCommand(cmdLine.substr(pipeSignIndex + (int) isPipeStdErr + 1));
 
     int pipeLine[2];
@@ -412,16 +412,16 @@ void RedirectionCommand::execute() {
 
     bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '>';
 
-    auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex ));
+    auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex));
 
     char *args_chars[COMMAND_MAX_ARGS];
     int args_size = _parseCommandLine((char *) cmdLine.substr(redirectionSignIndex + (int) isAppend + 1)
             .c_str(), args_chars);
     if (args_size > 1)
         perror("too many arguments for redirect");
-    else if(args_size==0)
+    else if (args_size == 0)
         perror("syntax error near unexpected token `newline'");
-    else{
+    else {
         int fdTarget;
         if (isAppend)
             fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
@@ -429,25 +429,25 @@ void RedirectionCommand::execute() {
             fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
 
-    if (fdTarget == -1)
-        logSysCallError("open");
-    else {
-        auto newStdout = dup(1);
-        if (newStdout == -1)
-            logSysCallError("dup");
-        if (dup2(fdTarget, 1) == -1)
-            logSysCallError("dup2");
-        if (close(fdTarget) == -1)
-            logSysCallError("close");
+        if (fdTarget == -1)
+            logSysCallError("open");
+        else {
+            auto newStdout = dup(1);
+            if (newStdout == -1)
+                logSysCallError("dup");
+            if (dup2(fdTarget, 1) == -1)
+                logSysCallError("dup2");
+            if (close(fdTarget) == -1)
+                logSysCallError("close");
 
-        cmd->execute();
+            cmd->execute();
 
-        if (dup2(newStdout, 1) == -1)
-            logSysCallError("dup2");
-        if (close(newStdout) == -1)
-            logSysCallError("close");
+            if (dup2(newStdout, 1) == -1)
+                logSysCallError("dup2");
+            if (close(newStdout) == -1)
+                logSysCallError("close");
+        }
     }
-
 }
 
 void CopyCommand::execute() {
