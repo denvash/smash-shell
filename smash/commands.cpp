@@ -411,9 +411,9 @@ void RedirectionCommand::execute() {
     int redirectionSignIndex = cmdLine.find('>');
 
     bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '>';
-    bool justStdOut=cmdLine[redirectionSignIndex - 1] && cmdLine[redirectionSignIndex -1] != '&';
+    bool justStdOut = cmdLine[redirectionSignIndex - 1] && cmdLine[redirectionSignIndex - 1] != '&';
 
-    auto cmdSourceCopy(cmdLine.substr(0, redirectionSignIndex-1));
+    auto cmdSourceCopy(cmdLine.substr(0, redirectionSignIndex - 1));
 
     bool justBgAndOpen = isBackgroundCommand(cmdSourceCopy.c_str());
 
@@ -442,7 +442,7 @@ void RedirectionCommand::execute() {
             logSysCallError("open");
         else {
 
-            if(justBgAndOpen){
+            if (justBgAndOpen) {
                 if (close(fdTarget) == -1)
                     logSysCallError("close");
 
@@ -460,16 +460,16 @@ void RedirectionCommand::execute() {
                     SmallShell::jobsList->addJob(cmd, pid, jobStartTime);
 //                    shell removes finished jobs when going back in the func stack
                 }
-            }else{
+            } else {
                 auto newStdout = dup(1);
-                auto newStdErr=dup (2);
+                auto newStdErr = dup(2);
 
-                if (newStdout == -1 || newStdErr==-1)
+                if (newStdout == -1 || newStdErr == -1)
                     logSysCallError("dup");
                 if (dup2(fdTarget, 1) == -1)
                     logSysCallError("dup2");
 
-                if(!justStdOut){
+                if (!justStdOut) {
                     if (dup2(fdTarget, 2) == -1)
                         logSysCallError("dup2");
                 }
@@ -479,14 +479,14 @@ void RedirectionCommand::execute() {
 
                 cmd->execute();
 
-                 if(!justStdOut){
-                     if (dup2(newStdErr, 2) == -1)
-                         logSysCallError("dup2");
-                 }
+                if (!justStdOut) {
+                    if (dup2(newStdErr, 2) == -1)
+                        logSysCallError("dup2");
+                }
 
                 if (dup2(newStdout, 1) == -1)
                     logSysCallError("dup2");
-                if (close(newStdout) == -1 ||close(newStdErr)==-1 )
+                if (close(newStdout) == -1 || close(newStdErr) == -1)
                     logSysCallError("close");
 
             }
