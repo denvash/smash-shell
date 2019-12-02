@@ -119,10 +119,6 @@ inline int parseSignalArg(const std::string &s) {
     return toNumber(signalStr);
 }
 
-inline int isSignal(int signalNumber) {
-    return !(1 <= signalNumber && signalNumber <= 31);
-}
-
 inline void logError(const string &message) {
     cout << "smash error: " << message << endl;
 }
