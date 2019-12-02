@@ -396,32 +396,37 @@ void RedirectionCommand::execute() {
             .c_str(), args_chars);
     if (args_size > 1)
         perror("too many arguments for redirect");
-
-    int fdTarget;
-    if (isAppend)
-        fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
-    else
-        fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-
-
-    if (fdTarget == -1)
-                logSysCallError("open");
+    else if(args_size==0)
+        perror("syntax error near unexpected token `newline'");
     else{
-        auto newStdout=dup(1);
-        if(newStdout==-1)
-            logSysCallError("dup");
-        if(dup2(fdTarget,1)==-1)
-            logSysCallError("dup2");
-        if(close(fdTarget)==-1)
-            logSysCallError("close");
+        int fdTarget;
+        if (isAppend)
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
+        else
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
-        cmd->execute();
 
-        if(dup2(newStdout,1)==-1)
-            logSysCallError("dup2");
-        if(close(newStdout)==-1)
-            logSysCallError("close");
+        if (fdTarget == -1)
+            logSysCallError("open");
+        else{
+            auto newStdout=dup(1);
+            if(newStdout==-1)
+                logSysCallError("dup");
+            if(dup2(fdTarget,1)==-1)
+                logSysCallError("dup2");
+            if(close(fdTarget)==-1)
+                logSysCallError("close");
+
+            cmd->execute();
+
+            if(dup2(newStdout,1)==-1)
+                logSysCallError("dup2");
+            if(close(newStdout)==-1)
+                logSysCallError("close");
+        }
     }
+
+
 
 }
 
