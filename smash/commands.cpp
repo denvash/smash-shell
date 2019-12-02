@@ -15,11 +15,11 @@ using namespace std;
 string SmallShell::last_pwd;
 CommandsHistory *SmallShell::history;
 JobsList *SmallShell::jobsList;
-JobsList::JobEntry *SmallShell::fgProcess;
+JobEntry *SmallShell::fgProcess;
 
 void setFg(Command *cmd, pid_t pid) {
     delete SmallShell::fgProcess;
-    SmallShell::fgProcess = new JobsList::JobEntry(pid, cmd, -1, getCurrentTime());
+    SmallShell::fgProcess = new JobEntry(pid, cmd, -1, getCurrentTime());
 }
 
 bool isFgCmd(Command *cmd) {
@@ -64,7 +64,7 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
         if (!isFgCmd(cmd)) {
             delete SmallShell::fgProcess;
             auto time = getCurrentTime();
-            SmallShell::fgProcess = new JobsList::JobEntry(-1, cmd, -1, time);
+            SmallShell::fgProcess = new JobEntry(-1, cmd, -1, time);
         }
 
         // Jobs list cleanup (removing finished jobs) should be done after each executed command

@@ -33,7 +33,7 @@ void ctrlZHandler(int sig_num) {
     auto fg = SmallShell::fgProcess;
 
     // Don't do anything if no fg process
-    if (fg->pid == -1) {
+    if (fg == nullptr || fg->pid == -1) {
         return;
     }
 
