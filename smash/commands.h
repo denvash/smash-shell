@@ -42,17 +42,16 @@ public:
         time_t endTime;
         bool isStopped;
 
-        JobEntry(pid_t pid, Command *cmd, int jobId,
+        JobEntry(pid_t pid, Command *cmd,
+                 int jobId,
                  time_t startTime,
                  time_t endTime = -1,
                  bool isStopped = false) : pid(pid),
                                            cmd(cmd),
                                            jobId(jobId),
-                                           startTime(
-                                                   startTime),
+                                           startTime(startTime),
                                            endTime(),
-                                           isStopped(
-                                                   isStopped) {}
+                                           isStopped(isStopped) {}
 
         void print() {
             std::cout << pid << ": " << cmd->cmdLine << endl;
@@ -66,6 +65,10 @@ public:
 
     ~JobsList() = default;
 
+    int getLastJobId() {
+        return jobs.empty() ? 0 : jobs.back()->jobId;
+    }
+
     void addJob(Command *cmd, pid_t pid, time_t startTime, bool isStopped = false) {
         time_t currentTime;
         auto resTime = time(&currentTime);
@@ -73,13 +76,18 @@ public:
         if (resTime == -1) {
             logSysCallError("time");
         }
-        auto last = jobs.empty() ? 0 : jobs[jobs.size() - 1]->jobId;
-        jobs.push_back(new JobEntry(pid, cmd, (int) last + 1, startTime, currentTime, isStopped));
+        auto lastId = getLastJobId();
+        jobs.push_back(new JobEntry(pid, cmd, (int) lastId + 1, startTime, currentTime, isStopped));
     }
 
     void addJob(JobEntry *job) {
-        job->jobId = (int) jobs.size() + 1;
-        jobs.push_back(job);
+        if (job->jobId != -1) {
+            jobs.insert(jobs.begin() + job->jobId - 1, job);
+        } else {
+            auto lastId = getLastJobId();
+            job->jobId = lastId + 1;
+            jobs.push_back(job);
+        }
     }
 
     void printJobsList() {
@@ -118,13 +126,23 @@ public:
     }
 
     void removeFinishedJobs() {
-        for (auto job : jobs) {
-            removeByJobPid(job->pid);
+        for (size_t i = 0; i < jobs.size(); i++) {
+            auto job = jobs[i];
+            int status;
+            int waitRes = waitpid(job->pid, &status, WNOHANG | WUNTRACED);
+            if ((waitRes > 0 && status == 0) || WIFSTOPPED(status)) {
+                jobs.erase(jobs.begin() + i);
+            }
         }
     }
 
-    JobEntry *getJobById(size_t jobId) {
-        return jobId - 1 < jobs.size() ? jobs[jobId - 1] : nullptr;
+    JobEntry *getJobById(int jobId) {
+        for (auto &job : jobs) {
+            if (job->jobId == jobId) {
+                return job;
+            }
+        }
+        return nullptr;
     }
 
     JobEntry *getJobByPid(pid_t pid) {
@@ -137,18 +155,21 @@ public:
     }
 
     void removeJobById(int jobId) {
-        jobs.erase(jobs.begin() + jobId - 1);
+        for (std::size_t i = 0; i < jobs.size(); i++) {
+            auto _jobId = jobs[i]->jobId;
+            if (_jobId == jobId) {
+                jobs.erase(jobs.begin() + i);
+                return;
+            }
+        }
     }
 
-    void removeByJobPid(pid_t pid) {
+    void removeJobByPid(pid_t pid) {
         for (std::size_t i = 0; i < jobs.size(); i++) {
             auto job = jobs[i];
             if (pid == job->pid) {
-                int status;
-                int waitRes = waitpid(job->pid, &status, WNOHANG | WUNTRACED);
-                if (waitRes > 0 || WIFSTOPPED(status)) {
-                    jobs.erase(jobs.begin() + i);
-                }
+                jobs.erase(jobs.begin() + i);
+                return;
             }
         }
     }

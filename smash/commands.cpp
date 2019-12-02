@@ -22,6 +22,10 @@ void setFg(Command *cmd, pid_t pid) {
     SmallShell::fgProcess = new JobsList::JobEntry(pid, cmd, -1, getCurrentTime());
 }
 
+bool isFgCmd(Command *cmd) {
+    return dynamic_cast<const ForegroundCommand *>(cmd) != nullptr;
+}
+
 void SmallShell::executeCommand(const char *cmdBuffer) {
     auto cmdCopy = string(cmdBuffer);
 
@@ -38,7 +42,6 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
     }
 
     history->addRecord(cmd);
-    jobsList->removeFinishedJobs();
 
     if (isBgCmd) {
         auto pid = fork();
@@ -53,12 +56,20 @@ void SmallShell::executeCommand(const char *cmdBuffer) {
             auto jobStartTime = getCurrentTime();
             cmd->cmdLine = string(cmdBuffer);
             jobsList->addJob(cmd, pid, jobStartTime);
+//            jobsList->removeFinishedJobs();
         }
     } else {
         cmd->execute();
-        delete SmallShell::fgProcess;
-        auto time = getCurrentTime();
-        SmallShell::fgProcess = new JobsList::JobEntry(-1, cmd, -1, time);
+
+        if (!isFgCmd(cmd)) {
+            delete SmallShell::fgProcess;
+            auto time = getCurrentTime();
+            SmallShell::fgProcess = new JobsList::JobEntry(-1, cmd, -1, time);
+        }
+
+        // Jobs list cleanup (removing finished jobs) should be done after each executed command
+        // https://piazza.com/class/k1yxdx0sx3926r?cid=170
+//        jobsList->removeFinishedJobs();
     }
 }
 
@@ -89,9 +100,12 @@ Command *SmallShell::createCommand(const string &cmdLine) {
 
     string cmd = args[0];
 
+    // Jobs list cleanup (removing finished jobs) should be done
+    // before each command that is related to jobs list (jobs,fg,bg,kill,quit kill).
+    // https://piazza.com/class/k1yxdx0sx3926r?cid=170
+
     if (cmd == "pwd") {
         return new GetCurrDirCommand(cmdLine);
-
     } else if (cmd == "cd") {
         if (args_size > 2) {
             logError("cd: too many arguments");
@@ -108,6 +122,7 @@ Command *SmallShell::createCommand(const string &cmdLine) {
     } else if (cmd == "history") {
         return new HistoryCommand(cmdLine, history);
     } else if (cmd == "jobs") {
+        jobsList->removeFinishedJobs();
         return new JobsCommand(cmdLine, jobsList);
     } else if (cmd == "showpid") {
         return new ShowPidCommand(cmdLine);
@@ -128,11 +143,16 @@ Command *SmallShell::createCommand(const string &cmdLine) {
             return nullptr;
         }
 
+//        jobsList->removeFinishedJobs();
         return new KillCommand(cmdLine, signalNumber, jobEntry->pid);
     } else if (cmd == "quit") {
         bool isKill = args_size > 1 && args[1] == "kill";
+        if (isKill) {
+            jobsList->removeFinishedJobs();
+        }
         return new QuitCommand(cmdLine, isKill, jobsList);
     } else if (cmd == "fg") {
+//        jobsList->removeFinishedJobs();
         if (args_size == 1) {
             auto lastEntry = jobsList->getLastJob();
 
@@ -140,7 +160,6 @@ Command *SmallShell::createCommand(const string &cmdLine) {
                 logError("fg: jobs list is empty");
                 return nullptr;
             }
-
             return new ForegroundCommand(cmdLine, lastEntry);
         }
 
@@ -157,7 +176,6 @@ Command *SmallShell::createCommand(const string &cmdLine) {
             logError("fg: job-id " + to_string(jobId) + " does not exists");
             return nullptr;
         }
-
         return new ForegroundCommand(cmdLine, jobEntry);
     } else if (cmd == "bg") {
         if (args_size == 1) {
@@ -168,6 +186,7 @@ Command *SmallShell::createCommand(const string &cmdLine) {
                 return nullptr;
             }
 
+            jobsList->removeFinishedJobs();
             return new BackgroundCommand(cmdLine, lastEntry);
         }
 
@@ -187,6 +206,8 @@ Command *SmallShell::createCommand(const string &cmdLine) {
             logError("bg: job-id " + to_string(jobId) + " is already running in the background");
             return nullptr;
         }
+
+        jobsList->removeFinishedJobs();
         return new BackgroundCommand(cmdLine, jobEntry);
     } else if (cmd == "cp") {
         auto pathSource = string(args[1]);
@@ -231,13 +252,13 @@ void ForegroundCommand::execute() {
     } else {
         // Remove the job from job list after bringing to fg
         auto jobList = SmallShell::jobsList;
-        jobList->removeJobById(job->jobId);
+        jobList->removeJobByPid(job->pid);
 
         delete SmallShell::fgProcess;
         SmallShell::fgProcess = job;
 
         int wstatus;
-        waitpid(-1, &wstatus, WUNTRACED);
+        waitpid(job->pid, &wstatus, WUNTRACED);
     }
 }
 
@@ -305,7 +326,9 @@ void KillCommand::execute() {
     } else {
         auto jobList = SmallShell::jobsList;
         auto job = jobList->getJobByPid(pid);
-        jobList->removeJobById(job->jobId);
+        if (job != nullptr) {
+            jobList->removeJobById(job->jobId);
+        }
     }
 }
 
@@ -325,58 +348,58 @@ void PipeCommand::execute() {
     int pipeLine[2];
     pipe(pipeLine);
 
-    auto pid=fork();
+    auto pid = fork();
 
-    if(pid==-1)//fork fail
+    if (pid == -1)//fork fail
         logSysCallError("fork");
-    else if(!pid){//son proc
+    else if (!pid) {//son proc
         setpgrp();
-        if(close(pipeLine[1])==-1)
+        if (close(pipeLine[1]) == -1)
             logSysCallError("close");
-        auto newStdIn=dup(0);
-        if(newStdIn==-1)
+        auto newStdIn = dup(0);
+        if (newStdIn == -1)
             logSysCallError("dup");
-        if(dup2(pipeLine[0],0)==-1)
+        if (dup2(pipeLine[0], 0) == -1)
             logSysCallError("dup2");
 
         cmdTarget->execute();
 
-        if(close(pipeLine[0])==-1 || close(newStdIn)==-1)
+        if (close(pipeLine[0]) == -1 || close(newStdIn) == -1)
             logSysCallError("close");
         exit(0);
-    }else{//father proc
-        if(close(pipeLine[0])==-1)
+    } else {//father proc
+        if (close(pipeLine[0]) == -1)
             logSysCallError("close");
-        if(isPipeStdErr){
-            auto newStdErr=dup(2);
-            if(newStdErr==-1)
+        if (isPipeStdErr) {
+            auto newStdErr = dup(2);
+            if (newStdErr == -1)
                 logSysCallError("dup");
-            if(dup2(pipeLine[1],2)==-1)
+            if (dup2(pipeLine[1], 2) == -1)
                 logSysCallError("dup2");
 
-            if(close(pipeLine[1])==-1)
+            if (close(pipeLine[1]) == -1)
                 logSysCallError("close");
 
             cmdSource->execute();
 
-            if(dup2(newStdErr,2)==-1)
+            if (dup2(newStdErr, 2) == -1)
                 logSysCallError("dup2");
-            if(close(newStdErr)==-1)
+            if (close(newStdErr) == -1)
                 logSysCallError("close");
-        }else{
-            auto newStdOut=dup(1);
-            if(newStdOut==-1)
+        } else {
+            auto newStdOut = dup(1);
+            if (newStdOut == -1)
                 logSysCallError("dup");
-            if(dup2(pipeLine[1],1)==-1)
+            if (dup2(pipeLine[1], 1) == -1)
                 logSysCallError("dup2");
-            if(close(pipeLine[1])==-1)
+            if (close(pipeLine[1]) == -1)
                 logSysCallError("close");
 
             cmdSource->execute();
 
-            if(dup2(newStdOut,1)==-1)
+            if (dup2(newStdOut, 1) == -1)
                 logSysCallError("dup2");
-            if(close(newStdOut)==-1)
+            if (close(newStdOut) == -1)
                 logSysCallError("close");
         }
         int wstatus;
@@ -405,21 +428,21 @@ void RedirectionCommand::execute() {
 
 
     if (fdTarget == -1)
-                logSysCallError("open");
-    else{
-        auto newStdout=dup(1);
-        if(newStdout==-1)
+        logSysCallError("open");
+    else {
+        auto newStdout = dup(1);
+        if (newStdout == -1)
             logSysCallError("dup");
-        if(dup2(fdTarget,1)==-1)
+        if (dup2(fdTarget, 1) == -1)
             logSysCallError("dup2");
-        if(close(fdTarget)==-1)
+        if (close(fdTarget) == -1)
             logSysCallError("close");
 
         cmd->execute();
 
-        if(dup2(newStdout,1)==-1)
+        if (dup2(newStdout, 1) == -1)
             logSysCallError("dup2");
-        if(close(newStdout)==-1)
+        if (close(newStdout) == -1)
             logSysCallError("close");
     }
 

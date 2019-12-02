@@ -21,7 +21,9 @@ void ctrlCHandler(int sig_num) {
     } else {
         cout << "smash: process " << fg->pid << " was killed" << endl;
 
-        // TODO: remove from jobs on kill
+        auto jobsList = SmallShell::jobsList;
+        jobsList->removeJobByPid(fg->pid);
+        delete SmallShell::fgProcess;
         SmallShell::fgProcess = nullptr;
     }
 }
@@ -40,10 +42,10 @@ void ctrlZHandler(int sig_num) {
     if (killRes == -1) {
         logSysCallError("kill");
     } else {
-
         auto jobsList = SmallShell::jobsList;
         fg->endTime = getCurrentTime();
         fg->isStopped = true;
+
         jobsList->addJob(fg);
 
         cout << "smash: process " << fg->pid << " was stopped" << endl;
