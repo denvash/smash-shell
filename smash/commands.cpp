@@ -342,7 +342,7 @@ void QuitCommand::execute() {
 void PipeCommand::execute() {
     int pipeSignIndex = cmdLine.find('|');
     bool isPipeStdErr = cmdLine[pipeSignIndex + 1] && cmdLine[pipeSignIndex + 1] == '&';
-    auto cmdSource = SmallShell::createCommand(cmdLine.substr(0, pipeSignIndex - 1));
+    auto cmdSource = SmallShell::createCommand(cmdLine.substr(0, pipeSignIndex ));
     auto cmdTarget = SmallShell::createCommand(cmdLine.substr(pipeSignIndex + (int) isPipeStdErr + 1));
 
     int pipeLine[2];
@@ -412,19 +412,21 @@ void RedirectionCommand::execute() {
 
     bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '>';
 
-    auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex - 1));
+    auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex ));
 
     char *args_chars[COMMAND_MAX_ARGS];
     int args_size = _parseCommandLine((char *) cmdLine.substr(redirectionSignIndex + (int) isAppend + 1)
             .c_str(), args_chars);
     if (args_size > 1)
         perror("too many arguments for redirect");
-
-    int fdTarget;
-    if (isAppend)
-        fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
-    else
-        fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    else if(args_size==0)
+        perror("syntax error near unexpected token `newline'");
+    else{
+        int fdTarget;
+        if (isAppend)
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
+        else
+            fdTarget = open(args_chars[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
 
     if (fdTarget == -1)
