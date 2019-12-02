@@ -32,31 +32,38 @@ public:
     // TODO: Add your extra methods if needed
 };
 
+struct JobEntry {
+    pid_t pid;
+    Command *cmd;
+    int jobId;
+    time_t startTime;
+    time_t endTime;
+    bool isStopped;
+
+    JobEntry(pid_t pid, Command *cmd,
+             int jobId,
+             time_t startTime,
+             time_t endTime = -1,
+             bool isStopped = false) : pid(pid),
+                                       cmd(cmd),
+                                       jobId(jobId),
+                                       startTime(startTime),
+                                       endTime(),
+                                       isStopped(isStopped) {}
+
+    void print() {
+        std::cout << pid << ": " << cmd->cmdLine << endl;
+    }
+
+    static bool entriesCompare(JobEntry *j1, JobEntry *j2) {
+        return j1->jobId < j2->jobId;
+    }
+};
+
+
 class JobsList {
 public:
-    struct JobEntry {
-        pid_t pid;
-        Command *cmd;
-        int jobId;
-        time_t startTime;
-        time_t endTime;
-        bool isStopped;
 
-        JobEntry(pid_t pid, Command *cmd,
-                 int jobId,
-                 time_t startTime,
-                 time_t endTime = -1,
-                 bool isStopped = false) : pid(pid),
-                                           cmd(cmd),
-                                           jobId(jobId),
-                                           startTime(startTime),
-                                           endTime(),
-                                           isStopped(isStopped) {}
-
-        void print() {
-            std::cout << pid << ": " << cmd->cmdLine << endl;
-        }
-    };
 
     vector<JobEntry *> jobs;
 
@@ -65,8 +72,16 @@ public:
 
     ~JobsList() = default;
 
+
     int getLastJobId() {
-        return jobs.empty() ? 0 : jobs.back()->jobId;
+        int max = 0;
+        for (auto &job : jobs) {
+            auto jobId = job->jobId;
+            if (jobId > max) {
+                max = jobId;
+            }
+        }
+        return max;
     }
 
     void addJob(Command *cmd, pid_t pid, time_t startTime, bool isStopped = false) {
@@ -82,7 +97,7 @@ public:
 
     void addJob(JobEntry *job) {
         if (job->jobId != -1) {
-            jobs.insert(jobs.begin() + job->jobId - 1, job);
+            jobs.push_back(job);
         } else {
             auto lastId = getLastJobId();
             job->jobId = lastId + 1;
@@ -91,6 +106,7 @@ public:
     }
 
     void printJobsList() {
+        sort(jobs.begin(), jobs.end(), JobEntry::entriesCompare);
         for (auto jobEntry : jobs) {
             auto jobId = jobEntry->jobId;
             auto cmd_line = jobEntry->cmd->cmdLine;
@@ -409,10 +425,10 @@ public:
 };
 
 class ForegroundCommand : public BuiltInCommand {
-    JobsList::JobEntry *job;
+    JobEntry *job;
 public:
-    ForegroundCommand(string cmdLine, JobsList::JobEntry *jobEntry) : BuiltInCommand(std::move(cmdLine)),
-                                                                      job(jobEntry) {
+    ForegroundCommand(string cmdLine, JobEntry *jobEntry) : BuiltInCommand(std::move(cmdLine)),
+                                                            job(jobEntry) {
     }
 
     ~ForegroundCommand() override = default;
@@ -421,10 +437,10 @@ public:
 };
 
 class BackgroundCommand : public BuiltInCommand {
-    JobsList::JobEntry *job;
+    JobEntry *job;
 public:
-    BackgroundCommand(string cmdLine, JobsList::JobEntry *jobEntry) : BuiltInCommand(std::move(cmdLine)),
-                                                                      job(jobEntry) {}
+    BackgroundCommand(string cmdLine, JobEntry *jobEntry) : BuiltInCommand(std::move(cmdLine)),
+                                                            job(jobEntry) {}
 
     ~BackgroundCommand() override = default;
 
@@ -460,7 +476,7 @@ public:
     static string last_pwd;
     static CommandsHistory *history;
     static JobsList *jobsList;
-    static JobsList::JobEntry *fgProcess;
+    static JobEntry *fgProcess;
 
     static Command *createCommand(const string &cmdLine);
 
