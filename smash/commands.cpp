@@ -411,8 +411,17 @@ void RedirectionCommand::execute() {
     int redirectionSignIndex = cmdLine.find('>');
 
     bool isAppend = cmdLine[redirectionSignIndex + 1] && cmdLine[redirectionSignIndex + 1] == '>';
+    bool justStdOut = cmdLine[redirectionSignIndex - 1] && cmdLine[redirectionSignIndex - 1] != '&';
 
-    auto cmd = SmallShell::createCommand(cmdLine.substr(0, redirectionSignIndex));
+    auto cmdSourceCopy(cmdLine.substr(0, redirectionSignIndex - 1));
+
+    bool justBgAndOpen = isBackgroundCommand(cmdSourceCopy.c_str());
+
+    removeBackgroundSign((char *) cmdSourceCopy.c_str());
+
+    auto tweakedCmdLine = string(cmdSourceCopy);
+
+    auto cmd = SmallShell::createCommand(tweakedCmdLine);
 
     char *args_chars[COMMAND_MAX_ARGS];
     int args_size = _parseCommandLine((char *) cmdLine.substr(redirectionSignIndex + (int) isAppend + 1)
@@ -432,20 +441,56 @@ void RedirectionCommand::execute() {
         if (fdTarget == -1)
             logSysCallError("open");
         else {
-            auto newStdout = dup(1);
-            if (newStdout == -1)
-                logSysCallError("dup");
-            if (dup2(fdTarget, 1) == -1)
-                logSysCallError("dup2");
-            if (close(fdTarget) == -1)
-                logSysCallError("close");
 
-            cmd->execute();
+            if (justBgAndOpen) {
+                if (close(fdTarget) == -1)
+                    logSysCallError("close");
 
-            if (dup2(newStdout, 1) == -1)
-                logSysCallError("dup2");
-            if (close(newStdout) == -1)
-                logSysCallError("close");
+                auto pid = fork();
+
+                if (pid == 0) {
+                    setpgrp();
+                    cmd->execute();
+                    exit(0);
+                } else if (pid == -1) {
+                    logSysCallError("fork");
+                } else {
+                    auto jobStartTime = getCurrentTime();
+                    cmd->cmdLine = string(tweakedCmdLine);
+                    SmallShell::jobsList->addJob(cmd, pid, jobStartTime);
+//                    shell removes finished jobs when going back in the func stack
+                }
+            } else {
+                auto newStdout = dup(1);
+                auto newStdErr = dup(2);
+
+                if (newStdout == -1 || newStdErr == -1)
+                    logSysCallError("dup");
+                if (dup2(fdTarget, 1) == -1)
+                    logSysCallError("dup2");
+
+                if (!justStdOut) {
+                    if (dup2(fdTarget, 2) == -1)
+                        logSysCallError("dup2");
+                }
+
+                if (close(fdTarget) == -1)
+                    logSysCallError("close");
+
+                cmd->execute();
+
+                if (!justStdOut) {
+                    if (dup2(newStdErr, 2) == -1)
+                        logSysCallError("dup2");
+                }
+
+                if (dup2(newStdout, 1) == -1)
+                    logSysCallError("dup2");
+                if (close(newStdout) == -1 || close(newStdErr) == -1)
+                    logSysCallError("close");
+
+            }
+
         }
     }
 }
